@@ -2,7 +2,7 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
-remappings = ['ds-test/=lib/ds-test/src/',
+remappings = [
 	'@openzeppelin/=lib/openzeppelin-contracts/',
 	'@uniswap-v2-core/=lib/v2-core/',
 	'@uniswap-v2-periphery/=lib/v2-periphery/'
