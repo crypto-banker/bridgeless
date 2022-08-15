@@ -22,3 +22,6 @@ out/
 !/broadcast
 /broadcast/*
 /broadcast/*/31337/
+lib/forge-std/
+lib/v2-core/
+lib/v2-periphery/
