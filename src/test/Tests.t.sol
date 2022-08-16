@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.12;
 
-import "../contracts/Bridgeless.sol";
+import "../contracts/Bridgeless_Uniswap.sol";
 
 import "forge-std/Test.sol";
 
@@ -11,7 +11,7 @@ contract Tests is Test {
     IUniswapV2Router02 public ROUTER;
     IUniswapV2Factory public FACTORY;
 
-    Bridgeless public bridgeless;
+    Bridgeless_Uniswap public bridgelessUniswap;
 
     uint256 user_priv_key = uint256(keccak256("pseudorandom-address-01"));
     address payable user = payable(cheats.addr(user_priv_key));
@@ -92,8 +92,8 @@ contract Tests is Test {
         cheats.assume(_feeBips <= MAX_FEE_BIPS);
 
         // initialize memory structs
-        Bridgeless.UniswapOrder memory uniswapOrder;
-        Bridgeless.Permit memory permit;
+        Bridgeless_Uniswap.UniswapOrder memory uniswapOrder;
+        Bridgeless_Uniswap.Permit memory permit;
 
         // check chainId
         uint256 chainId = block.chainid;
@@ -246,11 +246,11 @@ contract Tests is Test {
         // set fee at 10%
         uniswapOrder.feeBips = _feeBips;
 
-        // deploy the Bridgeless contract
-        bridgeless = new Bridgeless(ROUTER);
+        // deploy the Bridgeless_Uniswap contract
+        bridgelessUniswap = new Bridgeless_Uniswap(ROUTER);
 
         // get the order hash
-        bytes32 orderHash = bridgeless.calculateOrderHash(user, uniswapOrder);
+        bytes32 orderHash = bridgelessUniswap.calculateOrderHash(user, uniswapOrder);
         // get order signature and copy it over
         (uint8 v, bytes32 r, bytes32 s) = cheats.sign(user_priv_key, orderHash);
         uniswapOrder.v = v;
@@ -271,7 +271,7 @@ contract Tests is Test {
         bytes memory data = abi.encode(
             PERMIT_TYPEHASH,
             user,
-            address(bridgeless),
+            address(bridgelessUniswap),
             permit.value,
             nonce,
             permit.deadline
@@ -297,7 +297,7 @@ contract Tests is Test {
 
         // actually make the gasless swap
         cheats.startPrank(submitter);
-        bridgeless.swapGasless(uniswapOrder, permit);
+        bridgelessUniswap.swapGasless(uniswapOrder, permit);
         cheats.stopPrank();
 
         // log address balances
@@ -315,7 +315,7 @@ contract Tests is Test {
     }
 
     // unused internal function, left in from prior testing
-    function _callPermit(IERC2612 permitToken, address sender, address spender, Bridgeless.Permit memory permit) internal {
+    function _callPermit(IERC2612 permitToken, address sender, address spender, Bridgeless_Uniswap.Permit memory permit) internal {
         permitToken.permit(sender, spender, permit.value, permit.deadline, permit.v, permit.r, permit.s);
     }
 }
