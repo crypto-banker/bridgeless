@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.12;
 
-import "../contracts/Bridgeless_Uniswap.sol";
+import "../contracts/BridgelessUniswap.sol";
 
 import "forge-std/Test.sol";
 
@@ -11,7 +11,7 @@ contract Tests is Test {
     IUniswapV2Router02 public ROUTER;
     IUniswapV2Factory public FACTORY;
 
-    Bridgeless_Uniswap public bridgelessUniswap;
+    BridgelessUniswap public bridgelessUniswap;
 
     uint256 user_priv_key = uint256(keccak256("pseudorandom-address-01"));
     address payable user = payable(cheats.addr(user_priv_key));
@@ -92,8 +92,8 @@ contract Tests is Test {
         cheats.assume(_feeBips <= MAX_FEE_BIPS);
 
         // initialize memory structs
-        Bridgeless_Uniswap.UniswapOrder memory uniswapOrder;
-        Bridgeless_Uniswap.Permit memory permit;
+        BridgelessUniswap.UniswapOrder memory uniswapOrder;
+        BridgelessUniswap.Permit memory permit;
 
         // check chainId
         uint256 chainId = block.chainid;
@@ -246,8 +246,8 @@ contract Tests is Test {
         // set fee at 10%
         uniswapOrder.feeBips = _feeBips;
 
-        // deploy the Bridgeless_Uniswap contract
-        bridgelessUniswap = new Bridgeless_Uniswap(ROUTER);
+        // deploy the BridgelessUniswap contract
+        bridgelessUniswap = new BridgelessUniswap(ROUTER);
 
         // get the order hash
         bytes32 orderHash = bridgelessUniswap.calculateOrderHash(user, uniswapOrder);
@@ -315,7 +315,7 @@ contract Tests is Test {
     }
 
     // unused internal function, left in from prior testing
-    function _callPermit(IERC2612 permitToken, address sender, address spender, Bridgeless_Uniswap.Permit memory permit) internal {
+    function _callPermit(IERC2612 permitToken, address sender, address spender, BridgelessUniswap.Permit memory permit) internal {
         permitToken.permit(sender, spender, permit.value, permit.deadline, permit.v, permit.r, permit.s);
     }
 }

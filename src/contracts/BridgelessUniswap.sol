@@ -9,14 +9,10 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
-// import "forge-std/Test.sol";
-
-contract Bridgeless_Uniswap is
+contract BridgelessUniswap is
     ReentrancyGuard
-    // ,DSTest
 {
     using SafeERC20 for IERC20;
-    // Vm cheats = Vm(HEVM_ADDRESS);
 
     struct UniswapOrder {
         uint256 amountIn;
@@ -52,10 +48,12 @@ contract Bridgeless_Uniswap is
     IUniswapV2Factory public immutable FACTORY;
 
     /// @notice The EIP-712 typehash for the contract's domain
-    bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract,address router)");
+    bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
 
     /// @notice The EIP-712 typehash for the order struct used by the contract
-    bytes32 public constant ORDER_TYPEHASH = keccak256("UniswapV2Order(uint256 amountIn,uint256 amountOutMin,address[] calldata path,address to,uint256 deadline,uint256 feeBips,uint256 nonce)");
+    bytes32 public constant UNISWAP_ORDER_TYPEHASH = keccak256(
+        "UniswapV2Order(uint256 amountIn,uint256 amountOutMin,address[] calldata path,address to,uint256 deadline,uint256 feeBips,uint256 nonce)"
+    );
 
     /// @notice EIP-712 Domain separator
     bytes32 public immutable DOMAIN_SEPARATOR;
@@ -76,7 +74,7 @@ contract Bridgeless_Uniswap is
         FACTORY = IUniswapV2Factory(_ROUTER.factory());
         // initialize the immutable DOMAIN_SEPARATOR for signatures
         DOMAIN_SEPARATOR = keccak256(
-            abi.encode(DOMAIN_TYPEHASH, bytes("Bridgeless"), block.chainid, address(this), address(_ROUTER))
+            abi.encode(DOMAIN_TYPEHASH, bytes("Bridgeless"), block.chainid, address(this))
         );
         uint256 chainId = block.chainid;
         bytes4 selector;
@@ -94,7 +92,10 @@ contract Bridgeless_Uniswap is
     // do-nothing receive function to let this contract accept native tokens (ETH-equivalent)
     receive() external payable {}
 
-// note that uniswapOrder.amountIn and permit.value can differ. this is potentially useful in supporting fee-on-transfer tokens
+    /*
+    note that uniswapOrder.amountIn and permit.value can differ. this is potentially useful in supporting fee-on-transfer tokens
+    or if a user has already provided a permit signature but wants to change their order amount
+    */
     function swapGasless(
         UniswapOrder calldata uniswapOrder,
         Permit calldata permit
@@ -110,19 +111,28 @@ contract Bridgeless_Uniswap is
         // check that the `feeBips` is valid
         require(
             feeBips <= MAX_FEE_BIPS,
-            "Bridgeless.swapGasless: invalid feeBips provided"
+            "BridgelessUniswap.swapGasless: invalid feeBips provided"
         );
 
         // calculate the orderHash and then increase the token owner's nonce to help prevent signature re-use
         bytes32 orderHash = keccak256(
-            abi.encode(ORDER_TYPEHASH, uniswapOrder.amountIn, uniswapOrder.amountOutMin, uniswapOrder.path, address(this), uniswapOrder.deadline, feeBips, nonces[owner]++)
+            abi.encode(
+                UNISWAP_ORDER_TYPEHASH,
+                uniswapOrder.amountIn,
+                uniswapOrder.amountOutMin,
+                uniswapOrder.path,
+                address(this),
+                uniswapOrder.deadline,
+                feeBips,
+                nonces[owner]++
+            )
         );
 
         // verify the uniswapOrder signature
         address recoveredAddress = ECDSA.recover(orderHash, uniswapOrder.v, uniswapOrder.r, uniswapOrder.s);
         require(
             recoveredAddress == owner,
-            "Bridgeless.swapGasless: recoveredAddress != owner"
+            "BridgelessUniswap.swapGasless: recoveredAddress != owner"
         );
 
         // perform the permit call
@@ -155,7 +165,7 @@ contract Bridgeless_Uniswap is
 
         if (!success) {
             emit SwapFailed(returnData);
-            revert("Bridgeless.swapGasless: swap failed!");
+            revert("BridgelessUniswap.swapGasless: swap failed!");
         }
 
         // check ETH balance of this contract
@@ -180,7 +190,16 @@ contract Bridgeless_Uniswap is
 
     function calculateOrderHash(address owner, UniswapOrder calldata uniswapOrder) external view returns (bytes32) {
         bytes32 orderHash = keccak256(
-            abi.encode(ORDER_TYPEHASH, uniswapOrder.amountIn, uniswapOrder.amountOutMin, uniswapOrder.path, address(this), uniswapOrder.deadline, uniswapOrder.feeBips, nonces[owner])
+            abi.encode(
+                UNISWAP_ORDER_TYPEHASH,
+                uniswapOrder.amountIn,
+                uniswapOrder.amountOutMin,
+                uniswapOrder.path,
+                address(this),
+                uniswapOrder.deadline,
+                uniswapOrder.feeBips,
+                nonces[owner]
+            )
         );
         return orderHash;
     }
