@@ -41,7 +41,8 @@ contract BridgelessOTC is
         address tokenOwner,
         IBridgelessCallee swapper,
         BridgelessOrder calldata order,
-        Signature calldata signature
+        Signature calldata signature,
+        bytes calldata extraCalldata
     )
         // nonReentrant since we transfer native token later in the function
         external nonReentrant
@@ -73,7 +74,8 @@ contract BridgelessOTC is
         IERC20(order.tokenIn).safeTransferFrom(tokenOwner, address(swapper), order.amountIn);
 
         // forward on the swap instructions and pass execution to `swapper`
-        swapper.bridgelessCall(tokenOwner, order);
+        // `extraCalldata` can be e.g. multiple DEX orders
+        swapper.bridgelessCall(tokenOwner, order, extraCalldata);
 
         // verify that the `tokenOwner` received *at least* `order.amountOutMin` in native tokens from the swap
         require(

@@ -50,7 +50,7 @@ contract BridgelessSwapperUniswap is
         SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens = selector;
     }
 
-    function bridgelessCall(address swapDestination, BridgelessOrder calldata order) external {
+    function bridgelessCall(address swapDestination, BridgelessOrder calldata order, bytes calldata) external {
         // approve the router to transfer tokens
         IERC20(order.tokenIn).safeApprove(address(ROUTER), order.amountIn);
 

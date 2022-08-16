@@ -6,5 +6,5 @@ import "../BridgelessStructs.sol";
 interface IBridgelessCallee is
     BridgelessStructs
 {
-    function bridgelessCall(address swapDestination, BridgelessOrder calldata order) external;
+    function bridgelessCall(address swapDestination, BridgelessOrder calldata order, bytes calldata extraCalldata) external;
 }
