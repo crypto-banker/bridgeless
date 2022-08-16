@@ -170,6 +170,12 @@ contract Bridgeless_Uniswap is
 
         // send remaining native token to owner
         Address.sendValue(payable(owner), ethBal);
+
+        // refund any tokens that remain in this contract
+        uint256 tokenBal = tokenToSwap.balanceOf(address(this));
+        if (tokenBal > 0) {
+            tokenToSwap.safeTransfer(owner, tokenBal);
+        }
     }
 
     function calculateOrderHash(address owner, UniswapOrder calldata uniswapOrder) external view returns (bytes32) {
