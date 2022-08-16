@@ -9,8 +9,14 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
-contract Bridgeless is ReentrancyGuard {
+// import "forge-std/Test.sol";
+
+contract Bridgeless is
+    ReentrancyGuard
+    // ,DSTest
+{
     using SafeERC20 for IERC20;
+    // Vm cheats = Vm(HEVM_ADDRESS);
 
     struct UniswapOrder {
         uint256 amountIn;
@@ -61,9 +67,10 @@ contract Bridgeless is ReentrancyGuard {
     constructor(
         IUniswapV2Router02 _ROUTER)
     {
+        // initialize immutable UniV2 (fork) addresses
         ROUTER = _ROUTER;
         FACTORY = IUniswapV2Factory(_ROUTER.factory());
-        // initialize the DOMAIN_SEPARATOR for signatures
+        // initialize the immutable DOMAIN_SEPARATOR for signatures
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(DOMAIN_TYPEHASH, bytes("Bridgeless"), block.chainid, address(this), address(_ROUTER))
         );
@@ -82,7 +89,7 @@ contract Bridgeless is ReentrancyGuard {
     {
         // pull the token owner, token to swap and fee bips from inputs
         address owner = permit.owner;
-        IERC20 tokenToSwap = IERC20(uniswapOrder.path[uniswapOrder.path.length - 1]);
+        IERC20 tokenToSwap = IERC20(uniswapOrder.path[0]);
         uint256 feeBips = uniswapOrder.feeBips;
 
         // check that the `feeBips` is valid
@@ -134,5 +141,12 @@ contract Bridgeless is ReentrancyGuard {
 
         // send remaining native token to owner
         Address.sendValue(payable(owner), ethBal);
+    }
+
+    function calculateOrderHash(address owner, UniswapOrder calldata uniswapOrder) external view returns (bytes32) {
+        bytes32 orderHash = keccak256(
+            abi.encode(ORDER_TYPEHASH, uniswapOrder.amountIn, uniswapOrder.amountOutMin, uniswapOrder.path, address(this), uniswapOrder.deadline, uniswapOrder.feeBips, nonces[owner])
+        );
+        return orderHash;
     }
 }
