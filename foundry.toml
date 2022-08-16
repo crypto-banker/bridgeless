@@ -26,6 +26,8 @@ mainnet = "${RPC_MAINNET}"
 polygon = "${RPC_POLYGON}"
 arbitrum = "${RPC_ARBITRUM}"
 optimism = "${RPC_OPTIMISM}"
-goerli = "https://eth-goerli.alchemyapi.io/v2/${GOERLI_API_KEY}"
+avalanche = "${RPC_AVALANCHE}"
+fantom = "${RPC_FANTOM}"
+bsc = "${RPC_BSC}"
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

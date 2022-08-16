@@ -60,8 +60,12 @@ contract Bridgeless is
     /// @notice EIP-712 Domain separator
     bytes32 public immutable DOMAIN_SEPARATOR;
 
+    bytes4 public immutable SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens;
+
     // signer => number of signatures already provided
     mapping(address => uint256) public nonces;
+
+    event SwapFailed(bytes returnData);
 
     // set immutable variables
     constructor(
@@ -74,6 +78,17 @@ contract Bridgeless is
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(DOMAIN_TYPEHASH, bytes("Bridgeless"), block.chainid, address(this), address(_ROUTER))
         );
+        uint256 chainId = block.chainid;
+        bytes4 selector;
+        // Avalance
+        if (chainId == 43114) {
+            // first 4 bytes of keccak hash of swapExactTokensForAVAXSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)
+            selector = 0x762b1562;
+        } else {
+            // first 4 bytes of keccak hash of swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)
+            selector = 0x791ac947;            
+        }
+        SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens = selector;
     }
 
     // do-nothing receive function to let this contract accept native tokens (ETH-equivalent)
@@ -127,7 +142,21 @@ contract Bridgeless is
         //     address to,
         //     uint deadline
         // ) external;
-        ROUTER.swapExactTokensForETHSupportingFeeOnTransferTokens(uniswapOrder.amountIn, uniswapOrder.amountOutMin, uniswapOrder.path, address(this), uniswapOrder.deadline);
+        (bool success, bytes memory returnData) = address(ROUTER).call(
+            abi.encodeWithSelector(
+                SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens,
+                uniswapOrder.amountIn,
+                uniswapOrder.amountOutMin,
+                uniswapOrder.path,
+                address(this),
+                uniswapOrder.deadline
+            )
+        );
+
+        if (!success) {
+            emit SwapFailed(returnData);
+            revert("Bridgeless.swapGasless: swap failed!");
+        }
 
         // check ETH balance of this contract
         uint256 ethBal = address(this).balance;
