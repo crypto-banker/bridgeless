@@ -5,22 +5,15 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "./BridgelessOrderStruct.sol";
-import "./IBridgelessCallee.sol";
+import "./BridgelessStructs.sol";
+import "./interfaces/IBridgelessCallee.sol";
 
 contract BridgelessOTC is
-    BridgelessOrderStruct,
+    BridgelessStructs,
     ReentrancyGuard
 {
     using SafeERC20 for IERC20;
     // Vm cheats = Vm(HEVM_ADDRESS);
-
-    struct Signature {
-        // signature params
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-    }
 
     /// @notice The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");

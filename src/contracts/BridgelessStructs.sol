@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.12;
 
-interface BridgelessOrderStruct {
+interface BridgelessStructs {
     struct BridgelessOrder {
         // ERC20 token to trade
         address tokenIn;
@@ -12,4 +12,12 @@ interface BridgelessOrderStruct {
         // signature expiration
         uint256 deadline;
     }
+
+    struct Signature {
+        // signature params
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
 }

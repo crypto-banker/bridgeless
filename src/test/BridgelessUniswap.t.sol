@@ -2,44 +2,20 @@
 pragma solidity ^0.8.12;
 
 import "../contracts/BridgelessUniswap.sol";
+import "./utils/TokenAddresses.sol";
+import "./utils/UserAndSubmitter.sol";
 
-import "forge-std/Test.sol";
-
-contract Tests is Test {
-    Vm cheats = Vm(HEVM_ADDRESS);
-
+contract BridgelessUniswapTests is
+    TokenAddresses,
+    UserAndSubmitter
+{
     IUniswapV2Router02 public ROUTER;
     IUniswapV2Factory public FACTORY;
 
     BridgelessUniswap public bridgelessUniswap;
 
-    uint256 user_priv_key = uint256(keccak256("pseudorandom-address-01"));
-    address payable user = payable(cheats.addr(user_priv_key));
-
-    uint256 submitter_priv_key = uint256(keccak256("pseudorandom-address-02"));
-    address payable submitter = payable(cheats.addr(submitter_priv_key));
-
     // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
-
-    address internal constant ETH_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant ETH_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
-    address internal constant POLYGON_USDC = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-    address internal constant WMATIC = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
-
-    address internal constant ARBI_USDC = 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8;
-    address internal constant ARBI_WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
-
-    address internal constant AVAX_USDC = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
-    address internal constant WAVAX = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
-
-    address internal constant BOO = 0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE;
-    address internal constant WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
-
-    // one of first tokens to come up when you google 'erc2612 bsc'
-    address internal constant ORT = 0x1d64327C74d6519afeF54E58730aD6fc797f05Ba;
-    address internal constant WBNB = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
 
     uint256 internal constant MAX_BIPS = 10000;
     uint256 internal constant MAX_FEE_BIPS = 9000;
