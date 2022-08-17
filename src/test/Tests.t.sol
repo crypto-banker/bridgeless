@@ -206,6 +206,8 @@ contract Tests is
         // set up the order
         order.tokenIn = tokenToSwap;
         order.amountIn = _amountIn;
+        // swap for native token
+        order.tokenOut = address(0);
         order.amountOutMin = _amountOutMin;
         order.deadline = _deadline;
 

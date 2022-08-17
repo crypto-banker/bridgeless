@@ -7,6 +7,8 @@ interface BridgelessStructs {
         address tokenIn;
         // amount of token to trade
         uint256 amountIn;
+        // desired token to trade into
+        address tokenOut;
         // minimum amount of native token to receive
         uint256 amountOutMin;
         // signature expiration

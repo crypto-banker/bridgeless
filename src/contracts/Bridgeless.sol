@@ -8,16 +8,11 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "./BridgelessStructs.sol";
 import "./interfaces/IBridgelessCallee.sol";
 
-// import "forge-std/Test.sol";
-
 contract Bridgeless is
     BridgelessStructs,
     ReentrancyGuard
-    // ,DSTest
 {
     using SafeERC20 for IERC20;
-    // Vm cheats = Vm(HEVM_ADDRESS);
-
     /// @notice The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
 
@@ -50,8 +45,8 @@ contract Bridgeless is
         // nonReentrant since we transfer native token later in the function
         external nonReentrant
     {
-        // get the `tokenOwner`'s balance of the native asset, prior to any swap
-        uint256 ownerNativeBalance = tokenOwner.balance;
+        // get the `tokenOwner`'s balance of the `tokenOut`, prior to any swap
+        uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, order.tokenOut);
 
         // calculate the orderHash and then increase the token owner's nonce to help prevent signature re-use
         bytes32 orderHash = keccak256(
@@ -59,6 +54,7 @@ contract Bridgeless is
                 ORDER_TYPEHASH,
                 order.tokenIn,
                 order.amountIn,
+                order.tokenOut,
                 order.amountOutMin,
                 order.deadline,
                 nonces[tokenOwner]++
@@ -80,9 +76,9 @@ contract Bridgeless is
         // `extraCalldata` can be e.g. multiple DEX orders
         swapper.bridgelessCall(tokenOwner, order, extraCalldata);
 
-        // verify that the `tokenOwner` received *at least* `order.amountOutMin` in native tokens from the swap
+        // verify that the `tokenOwner` received *at least* `order.amountOutMin` in `tokenOut` from the swap
         require(
-            tokenOwner.balance - ownerNativeBalance >= order.amountOutMin,
+            _getUserBalance(tokenOwner, order.tokenOut) - ownerBalanceBefore >= order.amountOutMin,
             "Bridgeless.swapGasless: order.amountOutMin not met!"
         );
     }
@@ -93,11 +89,20 @@ contract Bridgeless is
                 ORDER_TYPEHASH,
                 order.tokenIn,
                 order.amountIn,
+                order.tokenOut,
                 order.amountOutMin,
                 order.deadline,
                 nonces[owner]
             )
         );
         return orderHash;
+    }
+
+    function _getUserBalance(address user, address token) internal view returns (uint256) {
+        if (token == address(0)) {
+            return user.balance;
+        } else {
+            return IERC20(token).balanceOf(user);
+        }
     }
 }
