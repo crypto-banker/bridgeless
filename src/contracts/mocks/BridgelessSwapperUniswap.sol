@@ -54,40 +54,82 @@ contract BridgelessSwapperUniswap is
         // approve the router to transfer tokens
         IERC20(order.tokenIn).safeApprove(address(ROUTER), order.amountIn);
 
-        // set up path variable. swap `tokenIn` to wrapped-native
-        address[] memory _path = new address[](2);
-        // `tokenIn`
-        _path[0] = order.tokenIn;
-        // canonical wrapped-token
-        uint256 chainId = block.chainid;
-        if (chainId != 43114) {
-            _path[1] = ROUTER.WETH();
-        } else {
-            // WAVAX
-            _path[1] = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
-        }
-        // perform the swap
-        // function swapExactTokensForETHSupportingFeeOnTransferTokens(
-        //     uint amountIn,
-        //     uint amountOutMin,
-        //     address[] calldata path,
-        //     address to,
-        //     uint deadline
-        // ) external;
-        (bool success, bytes memory returnData) = address(ROUTER).call(
-            abi.encodeWithSelector(
-                SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens,
-                order.amountIn,
-                order.amountOutMin,
-                _path,
-                swapDestination,
-                order.deadline
-            )
-        );
+        // if swap to native token
+        if (order.tokenOut == address(0)) {
+            // set up path variable. swap `tokenIn` to `tokenOut`
+            address[] memory _path = new address[](2);
+            // `tokenIn`
+            _path[0] = order.tokenIn;
+            // canonical wrapped-token
+            uint256 chainId = block.chainid;
+            if (chainId != 43114) {
+                _path[1] = ROUTER.WETH();
+            } else {
+                // WAVAX
+                _path[1] = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
+            }            
+            // perform the swap
+            // function swapExactTokensForETHSupportingFeeOnTransferTokens(
+            //     uint amountIn,
+            //     uint amountOutMin,
+            //     address[] calldata path,
+            //     address to,
+            //     uint deadline
+            // ) external;
+            (bool success, bytes memory returnData) = address(ROUTER).call(
+                abi.encodeWithSelector(
+                    SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens,
+                    order.amountIn,
+                    order.amountOutMin,
+                    _path,
+                    swapDestination,
+                    order.deadline
+                )
+            );
 
-        if (!success) {
-            emit SwapFailed(returnData);
-            revert("BridgelessUniswap.swapGasless: swap failed!");
+            if (!success) {
+                emit SwapFailed(returnData);
+                revert("BridgelessUniswap.swapGasless: swap failed!");
+            }
+        }
+        // if swap to another ERC20 -- note that the path routing is bad here, this is just a PoC
+        else {
+            // set up path variable. swap `tokenIn` to `tokenOut`
+            address[] memory _path = new address[](3);
+            // `tokenIn`
+            _path[0] = order.tokenIn;
+            // canonical wrapped-token
+            uint256 chainId = block.chainid;
+            if (chainId != 43114) {
+                _path[1] = ROUTER.WETH();
+            } else {
+                // WAVAX
+                _path[1] = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
+            }
+            _path[2] = order.tokenOut;          
+            // perform the swap
+            // function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            //     uint amountIn,
+            //     uint amountOutMin,
+            //     address[] calldata path,
+            //     address to,
+            //     uint deadline
+            // ) external;
+            (bool success, bytes memory returnData) = address(ROUTER).call(
+                abi.encodeWithSelector(
+                    IUniswapV2Router02.swapExactTokensForTokensSupportingFeeOnTransferTokens.selector,
+                    order.amountIn,
+                    order.amountOutMin,
+                    _path,
+                    swapDestination,
+                    order.deadline
+                )
+            );
+
+            if (!success) {
+                emit SwapFailed(returnData);
+                revert("BridgelessUniswap.swapGasless: swap failed!");
+            }
         }
     }
 }
