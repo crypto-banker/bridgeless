@@ -94,8 +94,8 @@ contract BridgelessUniswapTests is
             _path[1] = ETH_WETH;
             uniswapOrder.path = _path;
 
-            // binance bridge
-            addressToSendTokenFrom = 0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503;
+            // AAVE
+            addressToSendTokenFrom = 0xBcca60bB61934080951369a648Fb03DF4F96263C;
         }
 
         // for testing on forked polygon mainnet
