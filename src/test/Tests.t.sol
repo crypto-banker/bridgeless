@@ -2,14 +2,14 @@
 pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/interfaces/draft-IERC2612.sol";
-import "../contracts/BridgelessOTC.sol";
+import "../contracts/Bridgeless.sol";
 import "../contracts/BridgelessStructs.sol";
 import "../contracts/mocks/BridgelessSwapperUniswap.sol";
 import "./utils/TokenAddresses.sol";
 import "./utils/UserAndSubmitter.sol";
 import "multicall/Multicall3.sol";
 
-contract BridgelessOTCTests is
+contract Tests is
     TokenAddresses,
     UserAndSubmitter,
     BridgelessStructs
@@ -17,7 +17,7 @@ contract BridgelessOTCTests is
     // deployed on a huge number of chains at the same address -- see here https://github.com/mds1/multicall
     Multicall3 internal constant multicall = Multicall3(0xcA11bde05977b3631167028862bE2a173976CA11);
 
-    BridgelessOTC public bridgelessOTC;
+    Bridgeless public bridgeless;
 
     // POC implementation of the IBridgelessCallee interface
     BridgelessSwapperUniswap public bridgelessSwapperUniswap;
@@ -36,9 +36,9 @@ contract BridgelessOTCTests is
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
     function setUp() public {
-        // we would deploy the BridgelessOTC contract here, but it doesn't work nicely like this with forking existing networks.
+        // we would deploy the Bridgeless contract here, but it doesn't work nicely like this with forking existing networks.
         // better to deploy after creating fork!
-        // bridgelessOTC = new BridgelessOTC();
+        // bridgeless = new Bridgeless();
     }
 
     function testGaslessSwapMainnet() public {
@@ -78,8 +78,8 @@ contract BridgelessOTCTests is
     }
 
     function _testGaslessSwap() internal {
-        // deploy the BridgelessOTC contract
-        bridgelessOTC = new BridgelessOTC();
+        // deploy the Bridgeless contract
+        bridgeless = new Bridgeless();
 
         // check chainId
         uint256 chainId = block.chainid;
@@ -210,7 +210,7 @@ contract BridgelessOTCTests is
         order.deadline = _deadline;
 
         // get the order hash
-        bytes32 orderHash = bridgelessOTC.calculateBridgelessOrderHash(user, order);
+        bytes32 orderHash = bridgeless.calculateBridgelessOrderHash(user, order);
         // get order signature and copy it over to struct
         (uint8 v, bytes32 r, bytes32 s) = cheats.sign(user_priv_key, orderHash);
         orderSignature.v = v;
@@ -228,7 +228,7 @@ contract BridgelessOTCTests is
             bytes memory data = abi.encode(
                 PERMIT_TYPEHASH,
                 user,
-                address(bridgelessOTC),
+                address(bridgeless),
                 _amountIn,
                 nonce,
                 _deadline
@@ -271,7 +271,7 @@ contract BridgelessOTCTests is
             // permit(address,address,uint256,uint256,uint8,bytes32,bytes32) has selector 0xd505accf
             IERC20Permit.permit.selector,
             address(user),
-            address(bridgelessOTC),
+            address(bridgeless),
             uint256(_amountIn),
             uint256(_deadline),
             uint8(v),
@@ -280,9 +280,9 @@ contract BridgelessOTCTests is
         );
         }
 
-        // set up the `BridgelessOTC.swapGasless` call
+        // set up the `Bridgeless.swapGasless` call
         {
-            callsForMulticall[1].target = address(bridgelessOTC);
+            callsForMulticall[1].target = address(bridgeless);
             // function swapGasless(
             //     address tokenOwner,
             //     IBridgelessCallee swapper,
@@ -292,7 +292,7 @@ contract BridgelessOTCTests is
             // )
             bytes memory emptyBytes;
             callsForMulticall[1].callData = abi.encodeWithSelector(
-                BridgelessOTC.swapGasless.selector,
+                Bridgeless.swapGasless.selector,
                 user,
                 bridgelessSwapperUniswap,
                 order,

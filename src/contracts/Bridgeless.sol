@@ -10,7 +10,7 @@ import "./interfaces/IBridgelessCallee.sol";
 
 // import "forge-std/Test.sol";
 
-contract BridgelessOTC is
+contract Bridgeless is
     BridgelessStructs,
     ReentrancyGuard
     // ,DSTest
@@ -69,7 +69,7 @@ contract BridgelessOTC is
         address recoveredAddress = ECDSA.recover(orderHash, signature.v, signature.r, signature.s);
         require(
             recoveredAddress == tokenOwner,
-            "BridgelessOTC.swapGasless: recoveredAddress != tokenOwner"
+            "Bridgeless.swapGasless: recoveredAddress != tokenOwner"
         );
 
         // optimisically transfer the tokens to `swapper`
@@ -83,7 +83,7 @@ contract BridgelessOTC is
         // verify that the `tokenOwner` received *at least* `order.amountOutMin` in native tokens from the swap
         require(
             tokenOwner.balance - ownerNativeBalance >= order.amountOutMin,
-            "BridgelessOTC.swapGasless: order.amountOutMin not met!"
+            "Bridgeless.swapGasless: order.amountOutMin not met!"
         );
     }
 
