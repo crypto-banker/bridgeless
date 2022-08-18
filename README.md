@@ -14,15 +14,15 @@ It currently supports swaps *from* an ERC20 token that has some kind of signed a
 THIS SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THIS SOFTWARE OR THE USE OR OTHER DEALINGS IN THIS SOFTWARE.
 
 ## Table of Contents  
-[Intro](#intro)
-[Disclaimer](#disclaimer)  
-[Features](#features)  
-[Installation](#installation)  
-[Contracts](#contracts)  
-[Future Improvements](#improvements)  
-[Contributing To or Building On Bridgeless](#contributing)  
-[Donating / Tips](#donating)
-
+* [Intro](#intro)
+* [Disclaimer](#disclaimer)
+* [Features](#features) 
+* [Installation](#installation)
+* [Contracts](#contracts)
+* [Example Usecase & Order Flow](#example)
+* [Future Improvements](#improvements)
+* [Contributing To or Building On Bridgeless](#contributing)
+* [Donating / Tips](#donating)
 
 <a name="features"/></a>
 ## Features
@@ -42,8 +42,12 @@ This repo uses [Foundry](https://book.getfoundry.sh/). Get it, then run:
 
 
 <a name="tests"/></a>
-## Running Tests
-First create a .env file and set your RPC URLs (see the .env.example file).
+## Tests
+The tests file -- `/src/test/Tests.t.sol` provides multiple automated tests against forked networks.
+
+Currently, tests have coverage for 7 networks, although adding more is easy!
+
+To run the tests, first create a .env file and set your RPC URLs (see the .env.example file).
 
 Then run:
 
@@ -57,6 +61,7 @@ or
 
 `forge test -vv --match-test BSC`
 
+If you're looking to learn more about how to use Bridgeless's contracts, the tests are a great place to start.
 
 <a name="contracts"/></a>
 ## Contracts
@@ -122,7 +127,7 @@ Verification of order fulfillment by the `Bridgeless` contract is performed in a
 This is a simple, 'view'-type function designed to help calculate orderHashes for `BridgelessOrder`s.
 
 ### IBridgelessCallee
-This interface defines the (at present) two functions that a `Bridgeless Adapter` must define in order to be used in calls to `Bridgeless.fulfillOrder` and `Bridgeless.fulfillOrders`.
+This interface defines the (at present) two functions that a `BridgelessCallee`-type contract must define in order to be used in calls to `Bridgeless.fulfillOrder` and `Bridgeless.fulfillOrders`.
 
 ### BridgelessStructs
 The `BridgelessStructs` interface simply defines the two struct types -- `BridgelessOrder` and `Signature` that are shared amongst all of Bridgeless's other contracts.
@@ -132,11 +137,27 @@ This is a *mock* contract, designed to demonstrate a single possible implementat
 
 The `BridgelessSwapperUniswap` contract routes all trades through UniswapV2 pools, using very simple routing; for each order it fulfills, it swaps 100% of `order.amountIn` for `order.tokenOut`, sends `order.amountOutMin` of `order.tokenOut` to the `user` who created the order, and sends any extra `order.tokenOut` tokens obtained in the swap to `tx.origin`.
 
+<a name="example"/></a>
+## Example Usecase & Order Flow
+Suppose `User` has been airdropped some ERC20 `tokenA` on a new EVM chain, named `NewChain`. `User` would like to transact on `NewChain`, but they cannot send any transactions on `NewChain`, since they don't have any of the chain's native token, `NEW`. The simplest solution would be swapping some of their `tokenA` for `NEW`, but since the `User` does not have any `NEW`, they cannot even pay the gas fee to perform this swap on a DEX.
+
+With Bridgeless, `User` can simply issue 2 **digital signatures**, and let a `fulfiller` perform the swap for them! The first digital signature is a signed approval to allow the `Bridgeless` contract to transfer the `User`'s `tokenA`. The second digital signature cryptographically attests to the `User`'s desire to swap `X` of `tokenA` for `Y` of `NEW`, within their desired `deadline` (e.g. within the next 5 minutes).
+
+`Fulfiller` finds a good swap route, takes the `User`'s digital signatures, and bundles together a single complex transaction, in which:
+1. A call is made to `tokenA.permit`; the `tokenA` contract checks the `User`'s first digital signature and then completes the action of `User` giving the `Bridgeless` contract the power to transfer their `tokenA`s.
+2. A call is made to `Bridgeless.fulfillOrder`, which verifies the integrity of the order by checking it against the `User`'s second digital signature, transfers `X` of `tokenA` from `User` to an `BridgelessCallee` contract specified by the `Fulfiller`, passing on the order details.
+3. The `BridgelessCallee` contract executes the trade, taking the provide `tokenA` ERC20 tokens and swapping them for `Z` of `NEW`, where `Z > Y`.
+4. The adapter sends `Y` of `NEW` to `User`. The `Fulfiller` is free to keep the excess `(Z - Y)` in `NEW` tokens.
+5. The `Bridgeless` contract verifies that the order was fulfilled successfully and **reverts the entire transaction** if the order was not adequately fulfilled. If a transaction reversion takes place, the `Fulfiller` still pays the transaction fees; in this case the `User` does not pay anything and all `tokenA` tokens remain in their wallet.
+
+Assuming succesful order fulfillment, we have:
+* The `User` has successfully swapped `X` of `tokenA` for `Y` of `NEW`
+* The `Fulfiller` has made a revenue of `(Z - Y)` in `NEW` tokens -- if this amount exceeds the gas fees of their transaction, then they have made a profit!
 
 <a name="improvements"/></a>
 ## Future Improvements
 I would like to add:
-* More order types. Perhaps one-to-many type orders, or orders supporting ERC721 (and/or ERC1155) tokens as well.
+* More order types. Perhaps one-to-many type orders, or orders supporting ERC721 (and/or ERC1155) tokens as well as support of more "Uniswap-style" orders, like specifying an exact amount out with maxAmountIn.
 * More flexibility in order-fulfillment checks. Perhaps something like the [Drippie](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-periphery/contracts/universal/drippie/Drippie.sol) contract for support of arbitrary checks.
 * Additional mocks. More advanced integrations, additional architectures, etc.
 * More tests. Support for additional chains, complex order aggregation & routing, etc.
