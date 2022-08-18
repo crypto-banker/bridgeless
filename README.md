@@ -1,14 +1,30 @@
+<a name="top"/>
 # Bridgeless
+</a>
 Bridgeless is a minimal implementation of a framework for "gasless" swaps, utilizing so-called "meta transactions".
 It currently supports swaps *from* an ERC20 token that has some kind of signed approval support (e.g. EIP-2612 compliant, DAI-like approvals, etc.) *to* **EITHER**:
 * the native token of the chain (ETH for Ethereum Mainnet, BNB for Binance Smart Chain, AVAX for Avalanche C-Chain, etc.)
 **OR**
 * another ERC20 token
 
+<a name="disclaimer"/>
 ## Disclaimer
+</a>
 THIS SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THIS SOFTWARE OR THE USE OR OTHER DEALINGS IN THIS SOFTWARE.
 
+## Table of Contents  
+[Intro](#top)
+[Disclaimer](#disclaimer)  
+[Features](#features)  
+[Installation](#installation)  
+[Contracts](#contracts)  
+[Future Improvements](#improvements)  
+[Contributing To or Building On Bridgeless](#contributing)  
+[Donating / Tips](#donating)
+
+<a name="features"/>
 ## Features
+</a>
 Bridgeless is:
 1. **Chain-Agnostic**: Bridgeless makes no assumptions about existing chain infrastructure, and can be easily deployed on any EVM-compatible chain.
 2. **Exchange-Agnostic**: Bridgeless does not care how a `fulfiller` satisfies any (set of) user order(s). `Fulfiller`s can use multiple DEXes and a private orderbook all in the same transaction if they'd like to -- the sky is the limit!
@@ -16,11 +32,15 @@ Bridgeless is:
 4. **Not Rent Seeking**: Bridgeless makes *zero* money itself, and has *no value capture mechanism* built into it. Instead, Bridgeless merely provides a free, open source, trustless platform on which `user`s and `fulfiller`s can transact freely.
 5. **A Public Good**: Bridgeless provides a *provably neutral platform*, facilitating transactions that would otherwise be impossible. Bridgeless is licensed with the copyleft [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html) license, to ensure that it will remain in the public domain.
 
+<a name="installation"/>
 ## Installation
+</a>
 This repo uses [Foundry](https://book.getfoundry.sh/). Get it, then run:
 `forge install`
 
+<a name="tests"/>
 ## Running Tests
+</a>
 First create a .env file and set your RPC URLs (see .env.example)
 Then run:
 forge test -vv
@@ -30,7 +50,9 @@ forge test -vv --match-test Mainnet
 or
 forge test -vv --match-test BSC
 
+<a name="contracts"/>
 ## Contracts
+</a>
 ### Bridgeless
 This is the core Bridgeless contract, acting as the conduit for **Gasless Swaps**.
 Gasless Swaps are transactions in which the `user` making the swap pays zero gas fees. Transaction fees are instead paid by a `fulfiller` who executes the swap; the `Bridgeless`contract itself merely checks that:
@@ -92,7 +114,9 @@ The `BridgelessStructs` interface simply defines the two struct types -- `Bridge
 This is a *mock* contract, designed to demonstrate a single possible implementation of the `IBridgelessCallee` interface. While not necessarily intended for production use, it is used as a Proof of Concept for all of the tests in the `Tests.t.sol` file, which provide evidence of its functionality.
 The `BridgelessSwapperUniswap` contract routes all trades through UniswapV2 pools, using very simple routing; for each order it fulfills, it swaps 100% of `order.amountIn` for `order.tokenOut`, sends `order.amountOutMin` of `order.tokenOut` to the `user` who created the order, and sends any extra `order.tokenOut` tokens obtained in the swap to `tx.origin`.
 
-## Directions For Improvement
+<a name="improvements"/>
+## Future Improvements
+</a>
 I would like to add:
 * More order types. Perhaps one-to-many type orders, or orders supporting ERC721 (and/or ERC1155) tokens as well.
 * More flexibility in order-fulfillment checks. Perhaps something like the [Drippie](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-periphery/contracts/universal/drippie/Drippie.sol) contract for support of arbitrary checks.
@@ -100,7 +124,9 @@ I would like to add:
 * More tests. Support for additional chains, complex order aggregation & routing, etc.
 * Gas optimization. There's definitely some "low hanging fruit" for places to save gas, as well as less obvious and more difficult gas savings to be realized.
 
+<a name="contributing"/>
 ## Contributing To or Building On Bridgeless
+</a>
 Bridgeless is an open source project built with love! :heart:
 
 If you'd like to contribute, feel free to open a PR. If you're adding more features, please document your changes, at the very least with some in-line comments.
@@ -109,7 +135,9 @@ If you have questions or you'd like to discuss Bridgeless, you can DM @TokenPhys
 
 If you're thinking of building on Bridgeless, I'd be thrilled to help support your work -- building these contracts was cool, but it would be way more fun to see them really put to use!
 
+<a name="donating"/>
 ## Donating / Tips
+</a>
 Bridgeless is and will always be free software; it is distributed free-of-charge and was built for fun, with no goal or expectation of monetary gain.
 
 That being said, if you appreciate Bridgeless and would like to contribute to its continued development and the development of other similar public goods, we happily accept donations on any EVM-enabled chain to the following address:
