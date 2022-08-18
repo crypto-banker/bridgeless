@@ -10,15 +10,15 @@ It currently supports swaps *from* an ERC20 token that has some kind of signed a
 ## Disclaimer
 THIS SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THIS SOFTWARE OR THE USE OR OTHER DEALINGS IN THIS SOFTWARE.
 
-# Table of Contents  
-- [Intro](#intro)
-* [Disclaimer](#disclaimer)  
-* [Features](#features)  
-* [Installation](#installation)  
-* [Contracts](#contracts)  
-* [Future Improvements](#improvements)  
-* [Contributing To or Building On Bridgeless](#contributing)  
-* [Donating / Tips](#donating)
+## Table of Contents  
+[Intro](#intro)
+[Disclaimer](#disclaimer)  
+[Features](#features)  
+[Installation](#installation)  
+[Contracts](#contracts)  
+[Future Improvements](#improvements)  
+[Contributing To or Building On Bridgeless](#contributing)  
+[Donating / Tips](#donating)
 
 <a name="features"/></a>
 ## Features
