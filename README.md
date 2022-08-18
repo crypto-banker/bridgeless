@@ -127,7 +127,7 @@ Verification of order fulfillment by the `Bridgeless` contract is performed in a
 This is a simple, 'view'-type function designed to help calculate orderHashes for `BridgelessOrder`s.
 
 ### IBridgelessCallee
-This interface defines the (at present) two functions that a `Bridgeless Adapter` must define in order to be used in calls to `Bridgeless.fulfillOrder` and `Bridgeless.fulfillOrders`.
+This interface defines the (at present) two functions that a `BridgelessCallee`-type contract must define in order to be used in calls to `Bridgeless.fulfillOrder` and `Bridgeless.fulfillOrders`.
 
 ### BridgelessStructs
 The `BridgelessStructs` interface simply defines the two struct types -- `BridgelessOrder` and `Signature` that are shared amongst all of Bridgeless's other contracts.
@@ -139,14 +139,14 @@ The `BridgelessSwapperUniswap` contract routes all trades through UniswapV2 pool
 
 <a name="example"/></a>
 ## Example Usecase & Order Flow
-Suppose `User` has been airdropped `tokenA` on a new EVM chain, named `NewChain`. `User` would like to transact on `NewChain`, but they cannot send any transactions on `NewChain`, since they don't have any of the chain's native token, `NEW`. The simplest solution would be swapping some of their `tokenA` for `NEW`, but since the `User` does not have any `NEW`, they cannot pay the gas fee to perform this swap on a DEX.
+Suppose `User` has been airdropped some ERC20 `tokenA` on a new EVM chain, named `NewChain`. `User` would like to transact on `NewChain`, but they cannot send any transactions on `NewChain`, since they don't have any of the chain's native token, `NEW`. The simplest solution would be swapping some of their `tokenA` for `NEW`, but since the `User` does not have any `NEW`, they cannot even pay the gas fee to perform this swap on a DEX.
 
-With Bridgeless, `User` can simply issue 2 **digital signatures**, and let a `fulfiller` perform the swap for them! The first digital signature is a signed approval to allow the `Bridgeless` contract to transfer the `User`'s `tokenA`. The second digital signature cryptographically attests to the `User`'s desire to swap `X` of `tokenA` for *at least* `Y` of `NEW`, within their desired `deadline` (e.g. within the next 5 minutes).
+With Bridgeless, `User` can simply issue 2 **digital signatures**, and let a `fulfiller` perform the swap for them! The first digital signature is a signed approval to allow the `Bridgeless` contract to transfer the `User`'s `tokenA`. The second digital signature cryptographically attests to the `User`'s desire to swap `X` of `tokenA` for `Y` of `NEW`, within their desired `deadline` (e.g. within the next 5 minutes).
 
 `Fulfiller` finds a good swap route, takes the `User`'s digital signatures, and bundles together a single complex transaction, in which:
-1. A call is made to `tokenA.permit` and provides the `User`'s first digital signature to complete the action of `User` giving the `Bridgeless` contract the power to transfer their `tokenA`s.
-2. A call is made to `Bridgeless.fulfillOrder`, which verifies the integrity of the order by checking it against the `User`'s second digital signature, transfers `X` of `tokenA` from `User` to an `Adapter` contract specified by the `Fulfiller`, passing on the order details.
-3. The Adapter contract executes the trade, taking the provide `tokenA` ERC20 tokens and swapping them for `Z` of `NEW`, where `Z > Y`.
+1. A call is made to `tokenA.permit`; the `tokenA` contract checks the `User`'s first digital signature and then completes the action of `User` giving the `Bridgeless` contract the power to transfer their `tokenA`s.
+2. A call is made to `Bridgeless.fulfillOrder`, which verifies the integrity of the order by checking it against the `User`'s second digital signature, transfers `X` of `tokenA` from `User` to an `BridgelessCallee` contract specified by the `Fulfiller`, passing on the order details.
+3. The `BridgelessCallee` contract executes the trade, taking the provide `tokenA` ERC20 tokens and swapping them for `Z` of `NEW`, where `Z > Y`.
 4. The adapter sends `Y` of `NEW` to `User`. The `Fulfiller` is free to keep the excess `(Z - Y)` in `NEW` tokens.
 5. The `Bridgeless` contract verifies that the order was fulfilled successfully and **reverts the entire transaction** if the order was not adequately fulfilled. If a transaction reversion takes place, the `Fulfiller` still pays the transaction fees; in this case the `User` does not pay anything and all `tokenA` tokens remain in their wallet.
 
