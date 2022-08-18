@@ -4,11 +4,16 @@ pragma solidity ^0.8.12;
 import "@uniswap-v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap-v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "../interfaces/IBridgelessCallee.sol";
 
+import "forge-std/Test.sol";
+
 contract BridgelessSwapperUniswap is
-    IBridgelessCallee
+    IBridgelessCallee,
+    ReentrancyGuard
+    ,DSTest
 {
     using SafeERC20 for IERC20;
 
@@ -50,6 +55,9 @@ contract BridgelessSwapperUniswap is
         SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens = selector;
     }
 
+    // receive function to allow this contract to accept simple native-token transfers
+    receive() external payable {}
+
     function bridgelessCall(address swapDestination, BridgelessOrder calldata order, bytes calldata) external {
         // approve the router to transfer tokens
         IERC20(order.tokenIn).safeApprove(address(ROUTER), order.amountIn);
@@ -82,14 +90,26 @@ contract BridgelessSwapperUniswap is
                     order.amountIn,
                     order.amountOutMin,
                     _path,
-                    swapDestination,
+                    address(this),
                     order.deadline
                 )
             );
 
             if (!success) {
                 emit SwapFailed(returnData);
-                revert("BridgelessUniswap.swapGasless: swap failed!");
+                revert("BridgelessSwapperUniswap.bridgelessCall: swap failed!");
+            }
+
+            // check amount out
+            uint256 amountOut = address(this).balance;
+            require(amountOut >= order.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < order.amountOutMin");
+            Address.sendValue(payable(swapDestination), order.amountOutMin);
+            // transfer any remainder to `tx.origin`
+            uint256 profit = amountOut - order.amountOutMin;
+            if (profit != 0) {
+                emit log_named_address("profit obtained in token", order.tokenOut);
+                emit log_named_uint("amount of profit", profit);
+                Address.sendValue(payable(tx.origin), profit);
             }
         }
         // if swap to another ERC20 -- note that the path routing is bad here, this is just a PoC
@@ -121,14 +141,26 @@ contract BridgelessSwapperUniswap is
                     order.amountIn,
                     order.amountOutMin,
                     _path,
-                    swapDestination,
+                    address(this),
                     order.deadline
                 )
             );
 
             if (!success) {
                 emit SwapFailed(returnData);
-                revert("BridgelessUniswap.swapGasless: swap failed!");
+                revert("BridgelessSwapperUniswap.bridgelessCall: swap failed!");
+            }
+
+            // check amount out
+            uint256 amountOut = IERC20(order.tokenOut).balanceOf(address(this));
+            require(amountOut >= order.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < order.amountOutMin");
+            IERC20(order.tokenOut).transfer(swapDestination, order.amountOutMin);
+            // transfer any remainder to `tx.origin`
+            uint256 profit = amountOut - order.amountOutMin;
+            if (profit != 0) {
+                emit log_named_address("profit obtained in token", order.tokenOut);
+                emit log_named_uint("amount of profit", profit);
+                IERC20(order.tokenOut).transfer(tx.origin, profit);
             }
         }
     }

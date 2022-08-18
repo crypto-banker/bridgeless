@@ -13,5 +13,7 @@ First create a .env file and set your RPC URLs (see .env.example)
 Then run:
 forge test -vv
 
-You can also run the test for just a single network, for example:
-forge test -vv --match-test testGaslessSwapBSC
+You can also run the tests for just a single network using flags, for example:
+forge test -vv --match-test Mainnet
+or
+forge test -vv --match-test BSC

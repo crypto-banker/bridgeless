@@ -350,7 +350,7 @@ contract Tests is
         // set up the `Bridgeless.fulfillOrder` call
         {
             callsForMulticall[1].target = address(bridgeless);
-            // function swapGasless(
+            // function fulfillOrder(
             //     address tokenOwner,
             //     IBridgelessCallee swapper,
             //     BridgelessOrder calldata order,
@@ -375,9 +375,7 @@ contract Tests is
 
         // log address balances
         uint256 userBalance = _getUserBalance(user, order.tokenOut);
-        uint256 submitterBalance = _getUserBalance(submitter, order.tokenOut);
         emit log_named_uint("userBalance", userBalance);
-        emit log_named_uint("submitterBalance", submitterBalance);
         require(userBalance >= _amountOutMin, "order not fulfilled correctly!");
     }
 
