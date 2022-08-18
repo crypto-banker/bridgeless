@@ -85,6 +85,9 @@ This is a simple, 'view'-type function designed to help calculate orderHashes fo
 ### IBridgelessCallee
 This interface defines the (at present) two functions that a `Bridgeless Adapter` must define in order to be used in calls to `Bridgeless.fulfillOrder` and `Bridgeless.fulfillOrders`.
 
+### BridgelessStructs
+The `BridgelessStructs` interface simply defines the two struct types -- `BridgelessOrder` and `Signature` that are shared amongst all of Bridgeless's other contracts.
+
 ### BridgelessSwapperUniswap
 This is a *mock* contract, designed to demonstrate a single possible implementation of the `IBridgelessCallee` interface. While not necessarily intended for production use, it is used as a Proof of Concept for all of the tests in the `Tests.t.sol` file, which provide evidence of its functionality.
 The `BridgelessSwapperUniswap` contract routes all trades through UniswapV2 pools, using very simple routing; for each order it fulfills, it swaps 100% of `order.amountIn` for `order.tokenOut`, sends `order.amountOutMin` of `order.tokenOut` to the `user` who created the order, and sends any extra `order.tokenOut` tokens obtained in the swap to `tx.origin`.
@@ -95,6 +98,7 @@ I would like to add:
 * More flexibility in order-fulfillment checks. Perhaps something like the [Drippie](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-periphery/contracts/universal/drippie/Drippie.sol) contract for support of arbitrary checks.
 * Additional mocks. More advanced integrations, additional architectures, etc.
 * More tests. Support for additional chains, complex order aggregation & routing, etc.
+* Gas optimization. There's definitely some "low hanging fruit" for places to save gas, as well as less obvious and more difficult gas savings to be realized.
 
 ## Contributing To or Building On Bridgeless
 Bridgeless is an open source project built with love! :heart:
@@ -107,5 +111,7 @@ If you're thinking of building on Bridgeless, I'd be thrilled to help support yo
 
 ## Donating / Tips
 Bridgeless is and will always be free software; it is distributed free-of-charge and was built for fun, with no goal or expectation of monetary gain.
+
 That being said, if you appreciate Bridgeless and would like to contribute to its continued development and the development of other similar public goods, we happily accept donations on any EVM-enabled chain to the following address:
+
 0x5A94A7Acb3F34aEeac6BbCF7D8fFc3302D9b3d63

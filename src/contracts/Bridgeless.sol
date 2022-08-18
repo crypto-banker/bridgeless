@@ -35,6 +35,17 @@ contract Bridgeless is
         );
     }
 
+    /**
+     * @notice Fulfills a single `BridgelessOrder`, swapping `order.amountIn` of the ERC20 token `order.tokenIn` for *at least* `order.amountOutMin` of `order.TokenOut`.
+     * @notice Note that an input of `order.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `tokenOwner` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(tokenOwner, order, extraCalldata)`.
+     * @param tokenOwner Address of the user whose order is being fulfilled.
+     * @param order A valid `BridgelessOrder` created by `tokenOwner`, specifying their desired order parameters.
+     * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
+     *        by checking against calculateBridgelessOrderHash(tokenOwner, order)
+     * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
+     */
     function fulfillOrder(
         IBridgelessCallee swapper,
         address tokenOwner,
@@ -48,19 +59,13 @@ contract Bridgeless is
         // get the `tokenOwner`'s balance of the `tokenOut`, prior to any swap
         uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, order.tokenOut);
 
-        // calculate the orderHash and then increase the token owner's nonce to help prevent signature re-use
-        bytes32 orderHash = keccak256(
-            abi.encode(
-                ORDER_TYPEHASH,
-                order.tokenIn,
-                order.amountIn,
-                order.tokenOut,
-                order.amountOutMin,
-                order.deadline,
-                nonces[tokenOwner]++
-            )
-        );
-        
+        // calculate each `tokenOwner`'s orderHash
+        bytes32 orderHash = calculateBridgelessOrderHash(tokenOwner, order);
+        // increase the `tokenOwner`'s nonce to help prevent signature re-use
+        unchecked {
+            ++nonces[tokenOwner];
+        }
+
         // verify the BridgelessOrder signature
         address recoveredAddress = ECDSA.recover(orderHash, signature.v, signature.r, signature.s);
         require(
@@ -83,6 +88,18 @@ contract Bridgeless is
         );
     }
 
+    /**
+     * @notice Fulfills any arbitrary number of `BridgelessOrder`s, swapping `order.amountIn`
+     *         of the ERC20 token `orders[i].tokenIn` for *at least* `orders[i].amountOutMin` of `orders[i].TokenOut`.
+     * @notice Note that an input of `order.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from each of the `tokenOwners` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCalls(tokenOwners, orders, extraCalldata)`
+     * @param tokenOwners Addresses of the users whose orders are being fulfilled.
+     * @param orders A valid set of `BridgelessOrder`s created by `tokenOwners`, specifying their desired order parameters.
+     * @param signatures A valid set of ECDSA signatures of `orders` provided by `tokenOwners`. Thess signature are verified
+     *        by checking against `calculateBridgelessOrderHash(tokenOwners[i], orders[i])`
+     * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
+     */
     function fulfillOrders(
         IBridgelessCallee swapper,
         address[] calldata tokenOwners,
@@ -161,6 +178,11 @@ contract Bridgeless is
         }
     }
 
+    /**
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder`
+     * @param owner Signer of `order`
+     * @param order A `BridgelessOrder`-type order, either signed or to-be-signed by `owner`
+     */
     function calculateBridgelessOrderHash(address owner, BridgelessOrder calldata order) public view returns (bytes32) {
         bytes32 orderHash = keccak256(
             abi.encode(
@@ -176,6 +198,7 @@ contract Bridgeless is
         return orderHash;
     }
 
+    // fetches the `user`'s balance of `token`, where `token == address(0)` indicates the chain's native token
     function _getUserBalance(address user, address token) internal view returns (uint256) {
         if (token == address(0)) {
             return user.balance;
