@@ -58,7 +58,7 @@ contract BridgelessSwapperUniswap is
     // receive function to allow this contract to accept simple native-token transfers
     receive() external payable {}
 
-    function bridgelessCall(address swapDestination, BridgelessOrder calldata order, bytes calldata) external {
+    function bridgelessCall(address swapDestination, BridgelessOrder calldata order, bytes memory) public {
         // approve the router to transfer tokens
         IERC20(order.tokenIn).safeApprove(address(ROUTER), order.amountIn);
 
@@ -164,4 +164,17 @@ contract BridgelessSwapperUniswap is
             }
         }
     }
+
+    function bridgelessCalls(address[] calldata swapDestinations, BridgelessOrder[] calldata orders, bytes calldata) external {
+        uint256 ordersLength = orders.length;
+        bytes memory emptyBytes;
+        for (uint256 i; i < ordersLength;) {
+            bridgelessCall(swapDestinations[i], orders[i], emptyBytes);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
 }

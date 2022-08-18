@@ -36,13 +36,13 @@ contract Bridgeless is
     }
 
     function fulfillOrder(
-        address tokenOwner,
         IBridgelessCallee swapper,
+        address tokenOwner,
         BridgelessOrder calldata order,
         Signature calldata signature,
         bytes calldata extraCalldata
     )
-        // nonReentrant since we transfer native token later in the function
+        // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
         external nonReentrant
     {
         // get the `tokenOwner`'s balance of the `tokenOut`, prior to any swap
@@ -61,7 +61,7 @@ contract Bridgeless is
             )
         );
         
-        // verify the uniswapBridgelessOrder signature
+        // verify the BridgelessOrder signature
         address recoveredAddress = ECDSA.recover(orderHash, signature.v, signature.r, signature.s);
         require(
             recoveredAddress == tokenOwner,
@@ -69,7 +69,7 @@ contract Bridgeless is
         );
 
         // optimisically transfer the tokens to `swapper`
-        // assumes `permit` has already been called, presumably by the `swapper` or otherwise within this transaction!
+        // assumes `permit` has already been called, or allowance has elsewise been provided!
         IERC20(order.tokenIn).safeTransferFrom(tokenOwner, address(swapper), order.amountIn);
 
         // forward on the swap instructions and pass execution to `swapper`
@@ -83,7 +83,85 @@ contract Bridgeless is
         );
     }
 
-    function calculateBridgelessOrderHash(address owner, BridgelessOrder calldata order) external view returns (bytes32) {
+    function fulfillOrders(
+        IBridgelessCallee swapper,
+        address[] calldata tokenOwners,
+        BridgelessOrder[] calldata orders,
+        Signature[] calldata signatures,
+        bytes calldata extraCalldata
+    )
+        // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
+        external nonReentrant
+    {
+        // sanity check on input lengths
+        uint256 ownersLength = tokenOwners.length;
+        // scoped block used here to 'avoid stack too deep' errors
+        {
+            require(
+                ownersLength == orders.length,
+                "Bridgeless.fulfillOrders: tokenOwners.length != orders.length"
+            );
+            require(
+                ownersLength == signatures.length,
+                "Bridgeless.fulfillOrders: tokenOwners.length != signatures.length"
+            );
+        }
+
+        // declaring memory variables outside loop
+        uint256[] memory ownerBalancesBefore = new uint256[](ownersLength);
+        // scoped block used here to 'avoid stack too deep' errors
+        {
+            bytes32 orderHash;
+            address recoveredAddress;
+            for (uint256 i; i < ownersLength;) {
+                // get the `tokenOwners`'s balances of the `tokenOut`s, prior to any swap
+                ownerBalancesBefore[i] = _getUserBalance(tokenOwners[i], orders[i].tokenOut);
+
+                // calculate each `tokenOwner`'s orderHash
+                orderHash = calculateBridgelessOrderHash(tokenOwners[i], orders[i]);
+
+                // verify the BridgelessOrder signature
+                recoveredAddress = ECDSA.recover(orderHash, signatures[i].v, signatures[i].r, signatures[i].s);
+                require(
+                    recoveredAddress == tokenOwners[i],
+                    "Bridgeless.fulfillOrders: recoveredAddress != tokenOwners[i]"
+                );
+
+                // increase each token owner's nonce to help prevent signature re-use, and increment the loop
+                unchecked {
+                    ++nonces[tokenOwners[i]];
+                    ++i;
+                }
+            }
+        }
+
+        // optimisically transfer the tokens to `swapper`
+        // assumes `permit` has already been called, or allowance has elsewise been provided!
+        for (uint256 i; i < ownersLength;) {
+            IERC20(orders[i].tokenIn).safeTransferFrom(tokenOwners[i], address(swapper), orders[i].amountIn);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        // forward on the swap instructions and pass execution to `swapper`
+        // `extraCalldata` can be e.g. multiple DEX orders
+        swapper.bridgelessCalls(tokenOwners, orders, extraCalldata);
+
+        // verify that each of the `tokenOwners` received *at least* `orders[i].amountOutMin` in `tokenOut[i]` from the swap
+        for (uint256 i; i < ownersLength;) {
+            require(
+                _getUserBalance(tokenOwners[i], orders[i].tokenOut) - ownerBalancesBefore[i] >= orders[i].amountOutMin,
+                "Bridgeless.fulfillOrders: order.amountOutMin not met!"
+            );
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function calculateBridgelessOrderHash(address owner, BridgelessOrder calldata order) public view returns (bytes32) {
         bytes32 orderHash = keccak256(
             abi.encode(
                 ORDER_TYPEHASH,

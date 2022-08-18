@@ -7,4 +7,5 @@ interface IBridgelessCallee is
     BridgelessStructs
 {
     function bridgelessCall(address swapDestination, BridgelessOrder calldata order, bytes calldata extraCalldata) external;
+    function bridgelessCalls(address[] calldata swapDestinations, BridgelessOrder[] calldata orders, bytes calldata extraCalldata) external;
 }
