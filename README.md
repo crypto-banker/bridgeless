@@ -28,10 +28,11 @@ THIS SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
 ## Features
 Bridgeless is:
 1. **Chain-Agnostic**: Bridgeless makes no assumptions about existing chain infrastructure, and can be easily deployed on any EVM-compatible chain.
-2. **Exchange-Agnostic**: Bridgeless does not care how a `fulfiller` satisfies any (set of) user order(s). `Fulfiller`s can use multiple DEXes and a private orderbook all in the same transaction if they'd like to -- the sky is the limit!
-3. **Signed Approval Signature Scheme-Agnostic** : As mentioned above, Bridgeless makes no assumptions about the signed approval scheme of the ERC20 tokens which its `user`s swap.
-4. **Not Rent Seeking**: Bridgeless makes *zero* money itself, and has *no value capture mechanism* built into it. Instead, Bridgeless merely provides a free, open source, trustless platform on which `user`s and `fulfiller`s can transact freely.
+2. **Exchange-Agnostic**: Bridgeless does not care how a Fulfiller satisfies any (set of) user order(s). Fulfillers can use multiple DEXes and a private orderbook all in the same transaction if they'd like to -- the sky is the limit!
+3. **Signed Approval Signature Scheme-Agnostic** : As mentioned above, Bridgeless makes no assumptions about the signed approval scheme of the ERC20 tokens which its users swap.
+4. **Not Rent Seeking**: Bridgeless makes *zero* money itself, and has *no value capture mechanism* built into it. Instead, Bridgeless merely provides a free, open source, trustless platform on which users and Fulfillers can transact freely.
 5. **A Public Good**: Bridgeless provides a *provably neutral platform*, facilitating transactions that would otherwise be impossible. Bridgeless is licensed with the copyleft [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html) license, to ensure that it will remain in the public domain.
+6. **Decentralized**: Bridgeless was designed with a maximally decentralized architecture in mind. If a user has provided the necessary signatures to a Bridgeless contract, then *anyone* can fulfill their order, in any fashion they'd like! Likewise, even the 'mock' BridgelessSwapperUniswap contract is designed as a permissionless adapter, allowing anyone to fulfill a user's order through a simple swap on UniswapV2-type pools.
 
 
 <a name="installation"/></a>
@@ -154,6 +155,8 @@ Assuming succesful order fulfillment, we have:
 * The `User` has successfully swapped `X` of `tokenA` for `Y` of `NEW`
 * The `Fulfiller` has made a revenue of `(Z - Y)` in `NEW` tokens -- if this amount exceeds the gas fees of their transaction, then they have made a profit!
 
+Note that a fulfiller can accomplish this complex transaction through a custom-built smart contract, or by simply intelligently combining multiple permissionless smart contracts, as is demonstrated in this repository's existing tests.
+
 <a name="improvements"/></a>
 ## Future Improvements
 I would like to add:
@@ -170,10 +173,9 @@ Bridgeless is an open source project built with love! :heart:
 
 If you'd like to contribute, feel free to open a PR. If you're adding more features, please document your changes, at the very least with some in-line comments.
 
-If you have questions or you'd like to discuss Bridgeless, you can DM @TokenPhysicist on Twitter.
-
 If you're thinking of building on Bridgeless, I'd be thrilled to help support your work -- building these contracts was cool, but it would be way more fun to see them really put to use!
 
+If you have questions or you'd like to discuss Bridgeless, you can DM @TokenPhysicist on Twitter.
 
 <a name="donating"/></a>
 ## Donating / Tips
