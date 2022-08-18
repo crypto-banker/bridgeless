@@ -47,7 +47,7 @@ This repo uses [Foundry](https://book.getfoundry.sh/). Get it, then run:
 ## Tests
 The tests file -- `/src/test/Tests.t.sol` provides multiple automated tests against forked networks.
 
-Currently, tests have coverage for 7 networks, although adding more is easy!
+Currently, tests have coverage for 6 networks, although adding more is easy!
 
 To run the tests, first create a .env file and set your RPC URLs (see the .env.example file).
 
