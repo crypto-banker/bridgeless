@@ -35,7 +35,7 @@ contract Bridgeless is
         );
     }
 
-    function swapGasless(
+    function fulfillOrder(
         address tokenOwner,
         IBridgelessCallee swapper,
         BridgelessOrder calldata order,
@@ -65,7 +65,7 @@ contract Bridgeless is
         address recoveredAddress = ECDSA.recover(orderHash, signature.v, signature.r, signature.s);
         require(
             recoveredAddress == tokenOwner,
-            "Bridgeless.swapGasless: recoveredAddress != tokenOwner"
+            "Bridgeless.fulfillOrder: recoveredAddress != tokenOwner"
         );
 
         // optimisically transfer the tokens to `swapper`
@@ -79,7 +79,7 @@ contract Bridgeless is
         // verify that the `tokenOwner` received *at least* `order.amountOutMin` in `tokenOut` from the swap
         require(
             _getUserBalance(tokenOwner, order.tokenOut) - ownerBalanceBefore >= order.amountOutMin,
-            "Bridgeless.swapGasless: order.amountOutMin not met!"
+            "Bridgeless.fulfillOrder: order.amountOutMin not met!"
         );
     }
 
