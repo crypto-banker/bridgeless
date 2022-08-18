@@ -19,7 +19,7 @@ THIS SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
 * [Features](#features) 
 * [Installation](#installation)
 * [Contracts](#contracts)
-* [Example Usecase & Order Flow](#example)
+* [Example Use Case & Order Flow](#example)
 * [Future Improvements](#improvements)
 * [Contributing To or Building On Bridgeless](#contributing)
 * [Donating / Tips](#donating)
@@ -27,12 +27,13 @@ THIS SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
 <a name="features"/></a>
 ## Features
 Bridgeless is:
-1. **Chain-Agnostic**: Bridgeless makes no assumptions about existing chain infrastructure, and can be easily deployed on any EVM-compatible chain.
-2. **Exchange-Agnostic**: Bridgeless does not care how a Fulfiller satisfies any (set of) user order(s). Fulfillers can use multiple DEXes and a private orderbook all in the same transaction if they'd like to -- the sky is the limit!
-3. **Signed Approval Signature Scheme-Agnostic** : As mentioned above, Bridgeless makes no assumptions about the signed approval scheme of the ERC20 tokens which its users swap.
-4. **Not Rent Seeking**: Bridgeless makes *zero* money itself, and has *no value capture mechanism* built into it. Instead, Bridgeless merely provides a free, open source, trustless platform on which users and Fulfillers can transact freely.
-5. **A Public Good**: Bridgeless provides a *provably neutral platform*, facilitating transactions that would otherwise be impossible. Bridgeless is licensed with the copyleft [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html) license, to ensure that it will remain in the public domain.
-6. **Decentralized**: Bridgeless was designed with a maximally decentralized architecture in mind. If a user has provided the necessary signatures to a Bridgeless contract, then *anyone* can fulfill their order, in any fashion they'd like! Likewise, even the 'mock' BridgelessSwapperUniswap contract is designed as a permissionless adapter, allowing anyone to fulfill a user's order through a simple swap on UniswapV2-type pools.
+1. **Trustless**: There are absolutely zero admin or owner privileges in Bridgeless, and it is entirely non-upgradeable. Bridgeless' acts a verifiably neutral intermediary, facilitating transactions between users and order fulfillers that would otherwise require the users to trust the fulfillers.
+2. **Chain-Agnostic**: Bridgeless makes no assumptions about existing chain infrastructure, and can be easily deployed on any EVM-compatible chain.
+3. **Exchange-Agnostic**: Bridgeless does not care how a Fulfiller satisfies any (set of) user order(s). Fulfillers can use multiple DEXes and a private orderbook all in the same transaction if they'd like to -- the sky is the limit!
+4. **Signed Approval Signature Scheme-Agnostic** : As mentioned above, Bridgeless makes no assumptions about the signed approval scheme of the ERC20 tokens which its users swap.
+5. **Not Rent Seeking**: Bridgeless makes *zero* money itself, and has *no value capture mechanism* built into it. Instead, Bridgeless merely provides a free, open source, trustless platform on which users and Fulfillers can transact freely.
+6. **A Public Good**: Bridgeless provides a *provably neutral platform*, facilitating transactions that would otherwise be impossible. Bridgeless is licensed with the copyleft [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html) license, to ensure that it will remain in the public domain.
+7. **Decentralized**: Bridgeless was designed with a maximally decentralized architecture in mind. If a user has provided the necessary signatures to a Bridgeless contract, then *anyone* can fulfill their order, in any fashion they'd like! Likewise, even the 'mock' BridgelessSwapperUniswap contract is designed as a permissionless adapter, allowing anyone to fulfill a user's order through a simple swap on UniswapV2-type pools.
 
 
 <a name="installation"/></a>
@@ -151,7 +152,7 @@ With Bridgeless, `User` can simply issue 2 **digital signatures**, and let a `fu
 4. The adapter sends `Y` of `NEW` to `User`. The `Fulfiller` is free to keep the excess `(Z - Y)` in `NEW` tokens.
 5. The `Bridgeless` contract verifies that the order was fulfilled successfully and **reverts the entire transaction** if the order was not adequately fulfilled. If a transaction reversion takes place, the `Fulfiller` still pays the transaction fees; in this case the `User` does not pay anything and all `tokenA` tokens remain in their wallet.
 
-Assuming succesful order fulfillment, we have:
+Assuming successful order fulfillment, we have:
 * The `User` has successfully swapped `X` of `tokenA` for `Y` of `NEW`
 * The `Fulfiller` has made a revenue of `(Z - Y)` in `NEW` tokens -- if this amount exceeds the gas fees of their transaction, then they have made a profit!
 
