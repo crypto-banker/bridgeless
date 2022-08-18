@@ -41,7 +41,11 @@ contract Tests is
     bytes32 r;
     bytes32 s;
 
-    constructor() UsersAndSubmitter(3) {}
+    // this is a max number just for the existing tests.
+    // nothing in the contracts actually enforces a max number, this is purely to decrease the computational cost of running all the tests.
+    uint8 MAX_NUMBER_USERS = 8;
+
+    constructor() UsersAndSubmitter(MAX_NUMBER_USERS) {}
 
     function setUp() public {
         // we would deploy the Bridgeless contract here, but it doesn't work nicely like this with forking existing networks.
@@ -120,10 +124,10 @@ contract Tests is
         _testGaslessSwap(false);
     }
 
-    function testFulfillMultipleOrdersMainnet() public {
+    function testFulfillMultipleOrdersMainnet(uint8 numberUsers) public {
         uint256 forkId = cheats.createFork("mainnet");
         cheats.selectFork(forkId);
-        _testAggregatedGaslessSwap();
+        _testAggregatedGaslessSwap(numberUsers);
     }
 
     function _testGaslessSwap(bool swapForNative) internal {
@@ -393,15 +397,17 @@ contract Tests is
         require(userBalance >= _amountOutMin, "order not fulfilled correctly!");
     }
 
-    function _testAggregatedGaslessSwap() internal {
+    function _testAggregatedGaslessSwap(uint8 numberUsers) internal {
+        cheats.assume(numberUsers <= MAX_NUMBER_USERS);
+
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
 
         // initialize memory structs
-        BridgelessOrder[] memory orders = new BridgelessOrder[](2);
-        Signature[] memory orderSignatures = new Signature[](2);
-        Signature[] memory permitSignatures = new Signature[](2);
-        address[] memory tokenOwners = new address[](2);
+        BridgelessOrder[] memory orders = new BridgelessOrder[](numberUsers);
+        Signature[] memory orderSignatures = new Signature[](numberUsers);
+        Signature[] memory permitSignatures = new Signature[](numberUsers);
+        address[] memory tokenOwners = new address[](numberUsers);
 
         // check chainId
         uint256 chainId = block.chainid;
@@ -439,10 +445,10 @@ contract Tests is
         uint256 _deadline = type(uint256).max;
 
         // set up calls for gasless swaps
-        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](3);
+        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](numberUsers + 1);
 
         // set up the orders
-        for (uint256 i; i < 2; ++i) {
+        for (uint256 i; i < numberUsers; ++i) {
             orders[i].tokenIn = tokenToSwap;
             orders[i].amountIn = _amountIn;
             orders[i].amountOutMin = _amountOutMin;
@@ -524,7 +530,7 @@ contract Tests is
 
         // set up the `Bridgeless.fulfillOrders` call
         {
-            callsForMulticall[2].target = address(bridgeless);
+            callsForMulticall[numberUsers].target = address(bridgeless);
             // function fulfillOrders(
             //     IBridgelessCallee swapper,
             //     address[] calldata tokenOwners,
@@ -533,7 +539,7 @@ contract Tests is
             //     bytes calldata extraCalldata
             // )
             bytes memory emptyBytes;
-            callsForMulticall[2].callData = abi.encodeWithSelector(
+            callsForMulticall[numberUsers].callData = abi.encodeWithSelector(
                 Bridgeless.fulfillOrders.selector,
                 bridgelessSwapperUniswap,
                 tokenOwners,
@@ -549,7 +555,7 @@ contract Tests is
         cheats.stopPrank();
 
         // log address balances
-        for (uint256 i; i < 2; ++i) {
+        for (uint256 i; i < numberUsers; ++i) {
             uint256 userBalance = _getUserBalance(users[i], orders[i].tokenOut);
             emit log_named_uint("userBalance", userBalance);
             require(userBalance >= _amountOutMin, "order not fulfilled correctly!");    

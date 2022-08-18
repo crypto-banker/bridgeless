@@ -156,7 +156,6 @@ contract Bridgeless is
         // assumes `permit` has already been called, or allowance has elsewise been provided!
         for (uint256 i; i < ownersLength;) {
             IERC20(orders[i].tokenIn).safeTransferFrom(tokenOwners[i], address(swapper), orders[i].amountIn);
-
             unchecked {
                 ++i;
             }
