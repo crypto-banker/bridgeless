@@ -41,56 +41,102 @@ contract Tests is
         // bridgeless = new Bridgeless();
     }
 
-    function testGaslessSwapMainnet() public {
+    function testGaslessSwapToNativeMainnet() public {
         uint256 forkId = cheats.createFork("mainnet");
         cheats.selectFork(forkId);
-        _testGaslessSwap();
+        _testGaslessSwap(true);
     }
 
-    function testGaslessSwapPolygon() public {
+    function testGaslessSwapToNativePolygon() public {
         uint256 forkId = cheats.createFork("polygon");
         cheats.selectFork(forkId);
-        _testGaslessSwap();
+        _testGaslessSwap(true);
     }
 
-    function testGaslessSwapArbitrum() public {
+    function testGaslessSwapToNativeArbitrum() public {
         uint256 forkId = cheats.createFork("arbitrum");
         cheats.selectFork(forkId);
-        _testGaslessSwap();
+        _testGaslessSwap(true);
     }
 
-    function testGaslessSwapAvalanche() public {
+    function testGaslessSwapToNativeAvalanche() public {
         uint256 forkId = cheats.createFork("avalanche");
         cheats.selectFork(forkId);
-        _testGaslessSwap();
+        _testGaslessSwap(true);
     }
 
-    function testGaslessSwapFantom() public {
+    function testGaslessSwapToNativeFantom() public {
         uint256 forkId = cheats.createFork("fantom");
         cheats.selectFork(forkId);
-        _testGaslessSwap();
+        _testGaslessSwap(true);
     }
 
-    function testGaslessSwapBSC() public {
+    function testGaslessSwapToNativeBSC() public {
         uint256 forkId = cheats.createFork("bsc");
         cheats.selectFork(forkId);
-        _testGaslessSwap();
+        _testGaslessSwap(true);
+    }
+    function testGaslessSwapToNonNativeMainnet() public {
+        uint256 forkId = cheats.createFork("mainnet");
+        cheats.selectFork(forkId);
+        _testGaslessSwap(false);
     }
 
-    function _testGaslessSwap() internal {
+    function testGaslessSwapToNonNativePolygon() public {
+        uint256 forkId = cheats.createFork("polygon");
+        cheats.selectFork(forkId);
+        _testGaslessSwap(false);
+    }
+
+    function testGaslessSwapToNonNativeArbitrum() public {
+        uint256 forkId = cheats.createFork("arbitrum");
+        cheats.selectFork(forkId);
+        _testGaslessSwap(false);
+    }
+
+    function testGaslessSwapToNonNativeAvalanche() public {
+        uint256 forkId = cheats.createFork("avalanche");
+        cheats.selectFork(forkId);
+        _testGaslessSwap(false);
+    }
+
+    function testGaslessSwapToNonNativeFantom() public {
+        uint256 forkId = cheats.createFork("fantom");
+        cheats.selectFork(forkId);
+        _testGaslessSwap(false);
+    }
+
+    function testGaslessSwapToNonNativeBSC() public {
+        uint256 forkId = cheats.createFork("bsc");
+        cheats.selectFork(forkId);
+        _testGaslessSwap(false);
+    }
+
+    function _testGaslessSwap(bool swapForNative) internal {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
+
+        // initialize memory structs
+        BridgelessOrder memory order;
+        Signature memory orderSignature;
 
         // check chainId
         uint256 chainId = block.chainid;
         // emit the chainId for logging purposes
         emit log_named_uint("chainId", chainId);
 
+        // swap for at least 1 gwei of the `tokenOut`
+        _amountOutMin = 1e9;
+
+        if (swapForNative) {
+            // swap for native token
+            order.tokenOut = address(0);
+        }
+
         // for testing on forked ETH mainnet
         if (chainId == 1) {
-            // swap 1e6 ETH_USDC for at least 1e9 ETH (i.e. one full ETH_USDC for at least one gwei in native token)
+            // swap 1e6 ETH_USDC for at least 1e9 ETH (i.e. one full ETH_USDC for at least one gwei of `tokenOut`)
             _amountIn = 1e6;
-            _amountOutMin = 1e9;
 
             // uniswap router
             ROUTER = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
@@ -101,13 +147,17 @@ contract Tests is
 
             // AAVE
             addressToSendTokenFrom = 0xBcca60bB61934080951369a648Fb03DF4F96263C;
+
+            // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
+            if (!swapForNative) {
+                order.tokenOut = ETH_DAI;
+            }
         }
 
         // for testing on forked polygon mainnet
         else if (chainId == 137) {
-            // swap 1e6 POLYGON_USDC for at least 1e9 WMATIC (i.e. one full POLYGON_USDC for at least one gwei in native token)
+            // swap 1e6 POLYGON_USDC for at least 1e9 WMATIC (i.e. one full POLYGON_USDC for at least one gwei of `tokenOut`)
             _amountIn = 1e6;
-            _amountOutMin = 1e9;
 
             // quickswap router
             ROUTER = IUniswapV2Router02(0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff);
@@ -118,13 +168,17 @@ contract Tests is
 
             // AAVE address
             addressToSendTokenFrom = 0x625E7708f30cA75bfd92586e17077590C60eb4cD;
-        }
+ 
+            // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
+            if (!swapForNative) {
+                order.tokenOut = POLYGON_DAI;
+            }
+       }
 
         // for testing on forked arbitrum
         else if (chainId == 42161) {
-            // swap 1e6 ARBI_USDC for at least 1e9 ARBI_WETH (i.e. one full ARBI_USDC for at least one gwei in native token)
+            // swap 1e6 ARBI_USDC for at least 1e9 ARBI_WETH (i.e. one full ARBI_USDC for at least one gwei of `tokenOut`)
             _amountIn = 1e6;
-            _amountOutMin = 1e9;
 
             // SushiSwap router
             ROUTER = IUniswapV2Router02(0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506);
@@ -135,13 +189,17 @@ contract Tests is
 
             // some bridge / exchange ? found through arbiscan
             addressToSendTokenFrom = 0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b;
+
+            // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
+            if (!swapForNative) {
+                order.tokenOut = ARBI_DAI;
+            }
         }
 
         // for testing on forked Avalanche C-Chain
         else if (chainId == 43114) {
-            // swap 1e6 AVAX_USDC for at least 1e9 WAVAX (i.e. one full AVAX_USDC for at least one gwei in native token)
+            // swap 1e6 AVAX_USDC for at least 1e9 WAVAX (i.e. one full AVAX_USDC for at least one gwei of `tokenOut`)
             _amountIn = 1e6;
-            _amountOutMin = 1e9;
 
             // JOE router
             ROUTER = IUniswapV2Router02(0x60aE616a2155Ee3d9A68541Ba4544862310933d4);
@@ -152,13 +210,17 @@ contract Tests is
 
             // AAVE
             addressToSendTokenFrom = 0x625E7708f30cA75bfd92586e17077590C60eb4cD;
+
+            // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
+            if (!swapForNative) {
+                order.tokenOut = AVAX_DAI;
+            }
         }
 
         // for testing on forked fantom opera
         else if (chainId == 250) {
-            // swap 1e18 BOO for at least 1e9 WFTM (i.e. one full BOO for at least one gwei in native token)
+            // swap 1e18 BOO for at least 1e9 WFTM (i.e. one full BOO for at least one gwei of `tokenOut`)
             _amountIn = 1e18;
-            _amountOutMin = 1e9;
 
             // SpookySwap router
             ROUTER = IUniswapV2Router02(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
@@ -169,13 +231,17 @@ contract Tests is
 
             // xBOO token address
             addressToSendTokenFrom = 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598;
+
+            // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
+            if (!swapForNative) {
+                order.tokenOut = FTM_DAI;
+            }
         }
 
         // for testing on forked BSC
         else if (chainId == 56) {
-            // swap 1e18 ORT for at least 1e9 WBNB (i.e. one full ORT for at least one gwei in native token)
+            // swap 1e18 ORT for at least 1e9 WBNB (i.e. one full ORT for at least one gwei of `tokenOut`)
             _amountIn = 1e18;
-            _amountOutMin = 1e9;
 
             // PancakeSwap router
             ROUTER = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
@@ -186,16 +252,17 @@ contract Tests is
 
             // ORT staking contract?
             addressToSendTokenFrom = 0x6f40A3d0c89cFfdC8A1af212A019C220A295E9bB;
+
+            // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
+            if (!swapForNative) {
+                order.tokenOut = BUSD;
+            }
         }
 
         else {
             emit log_named_uint("ERROR: unsupported chainId number", chainId);
             revert("support for chain not yet added to *tests* -- you can still launch on the chain though!");
         }
-
-        // initialize memory structs
-        BridgelessOrder memory order;
-        Signature memory orderSignature;
 
         // deploy POC IBridgelessCallee contract
         bridgelessSwapperUniswap = new BridgelessSwapperUniswap(ROUTER);
@@ -206,8 +273,6 @@ contract Tests is
         // set up the order
         order.tokenIn = tokenToSwap;
         order.amountIn = _amountIn;
-        // swap for native token
-        order.tokenOut = address(0);
         order.amountOutMin = _amountOutMin;
         order.deadline = _deadline;
 
@@ -282,7 +347,7 @@ contract Tests is
         );
         }
 
-        // set up the `Bridgeless.swapGasless` call
+        // set up the `Bridgeless.fulfillOrder` call
         {
             callsForMulticall[1].target = address(bridgeless);
             // function swapGasless(
@@ -294,7 +359,7 @@ contract Tests is
             // )
             bytes memory emptyBytes;
             callsForMulticall[1].callData = abi.encodeWithSelector(
-                Bridgeless.swapGasless.selector,
+                Bridgeless.fulfillOrder.selector,
                 user,
                 bridgelessSwapperUniswap,
                 order,
@@ -309,11 +374,19 @@ contract Tests is
         cheats.stopPrank();
 
         // log address balances
-        uint256 userBalance = user.balance;
-        uint256 submitterBalance = submitter.balance;
+        uint256 userBalance = _getUserBalance(user, order.tokenOut);
+        uint256 submitterBalance = _getUserBalance(submitter, order.tokenOut);
         emit log_named_uint("userBalance", userBalance);
         emit log_named_uint("submitterBalance", submitterBalance);
-        require(userBalance > _amountOutMin, "order not fulfilled correctly!");
+        require(userBalance >= _amountOutMin, "order not fulfilled correctly!");
+    }
+
+    function _getUserBalance(address user, address token) internal view returns (uint256) {
+        if (token == address(0)) {
+            return user.balance;
+        } else {
+            return IERC20(token).balanceOf(user);
+        }
     }
 }
 
