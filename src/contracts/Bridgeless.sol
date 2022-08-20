@@ -54,7 +54,7 @@ contract Bridgeless is
         bytes calldata extraCalldata
     )
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
-        external nonReentrant
+        public virtual nonReentrant
     {
         // get the `tokenOwner`'s balance of the `tokenOut`, prior to any swap
         uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, order.tokenOut);
@@ -108,7 +108,7 @@ contract Bridgeless is
         bytes calldata extraCalldata
     )
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
-        external nonReentrant
+        public virtual nonReentrant
     {
         // sanity check on input lengths
         uint256 ownersLength = tokenOwners.length;
