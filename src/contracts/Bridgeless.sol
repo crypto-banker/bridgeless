@@ -8,10 +8,14 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "./BridgelessStructs.sol";
 import "./interfaces/IBridgelessCallee.sol";
 
+import "forge-std/Test.sol";
+
 contract Bridgeless is
     BridgelessStructs,
     ReentrancyGuard
+    ,DSTest
 {
+    Vm cheats = Vm(HEVM_ADDRESS);
     using SafeERC20 for IERC20;
     /// @notice The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
@@ -42,6 +46,7 @@ contract Bridgeless is
     // signer => nonce => whether or not the nonce has been spent already
     mapping(address => mapping(uint256 => bool)) public nonceIsSpent;
 
+    // verify that the `tokenOwner` receives *at least* `amountOutMin in `tokenOut` from the swap
     modifier checkOrderExecution(
         address tokenOwner,
         address tokenOut,
@@ -49,13 +54,18 @@ contract Bridgeless is
     ) {
         // get the `tokenOwner`'s balance of the `tokenOut`, *prior* to running the function
         uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, tokenOut);
+        
+        // run the function
         _;
+
         // verify that the `tokenOwner` received *at least* `amountOutMin` in `tokenOut` *after* function
         require(
             _getUserBalance(tokenOwner, tokenOut) - ownerBalanceBefore >= amountOutMin,
             "Bridgeless.checkOrderExecution: amountOutMin not met!"
         );
     }
+
+    // verify that each of the `tokenOwners` receives *at least* `orders[i].orderBase.amountOutMin` in `tokenOut[i]` from the swap
 
     // set immutable variables
     constructor()
@@ -84,11 +94,14 @@ contract Bridgeless is
         Signature calldata signature,
         bytes calldata extraCalldata
     )   
+        public virtual
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
-        public virtual nonReentrant
+        nonReentrant
         // modifier to verify correct order execution
-        checkOrderExecution(tokenOwner, order.orderBase.tokenIn, order.orderBase.amountOutMin)
+        checkOrderExecution(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
     {
+        emit log_named_uint("_getUserBalance(tokenOwner, tokenOut) -- really before", _getUserBalance(tokenOwner, order.orderBase.tokenOut));
+
         // verify that `tokenOwner` did indeed sign `order` and that it is still valid
         _validateOrder_Simple(tokenOwner, order, signature);
 
@@ -120,8 +133,9 @@ contract Bridgeless is
         Signature[] calldata signatures,
         bytes calldata extraCalldata
     )
+        public virtual
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
-        public virtual nonReentrant
+        nonReentrant
     {
         // sanity check on input lengths
         uint256 ownersLength = tokenOwners.length;
