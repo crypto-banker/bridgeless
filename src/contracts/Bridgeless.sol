@@ -42,6 +42,21 @@ contract Bridgeless is
     // signer => nonce => whether or not the nonce has been spent already
     mapping(address => mapping(uint256 => bool)) public nonceIsSpent;
 
+    modifier checkOrderExecution(
+        address tokenOwner,
+        address tokenOut,
+        uint256 amountOutMin
+    ) {
+        // get the `tokenOwner`'s balance of the `tokenOut`, *prior* to running the function
+        uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, tokenOut);
+        _;
+        // verify that the `tokenOwner` received *at least* `amountOutMin` in `tokenOut` *after* function
+        require(
+            _getUserBalance(tokenOwner, tokenOut) - ownerBalanceBefore >= amountOutMin,
+            "Bridgeless.checkOrderExecution: amountOutMin not met!"
+        );
+    }
+
     // set immutable variables
     constructor()
     {
@@ -68,15 +83,14 @@ contract Bridgeless is
         BridgelessOrder_Simple calldata order,
         Signature calldata signature,
         bytes calldata extraCalldata
-    )
+    )   
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
         public virtual nonReentrant
+        // modifier to verify correct order execution
+        checkOrderExecution(tokenOwner, order.orderBase.tokenIn, order.orderBase.amountOutMin)
     {
         // verify that `tokenOwner` did indeed sign `order` and that it is still valid
         _validateOrder_Simple(tokenOwner, order, signature);
-
-        // get the `tokenOwner`'s balance of the `tokenOut`, prior to any swap
-        uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, order.orderBase.tokenOut);
 
         // optimisically transfer the tokens to `swapper`
         // assumes `permit` has already been called, or allowance has elsewise been provided!
@@ -85,12 +99,6 @@ contract Bridgeless is
         // forward on the swap instructions and pass execution to `swapper`
         // `extraCalldata` can be e.g. multiple DEX orders
         swapper.bridgelessCall(tokenOwner, order, extraCalldata);
-
-        // verify that the `tokenOwner` received *at least* `order.orderBase.amountOutMin` in `tokenOut` from the swap
-        require(
-            _getUserBalance(tokenOwner, order.orderBase.tokenOut) - ownerBalanceBefore >= order.orderBase.amountOutMin,
-            "Bridgeless.fulfillOrder: order.orderBase.amountOutMin not met!"
-        );
     }
 
     /**
