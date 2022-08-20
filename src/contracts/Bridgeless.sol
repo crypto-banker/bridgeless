@@ -223,14 +223,16 @@ contract Bridgeless is
             "Bridgeless._validateOrder_Simple: block.timestamp > order.orderBase.deadline"
         );
 
-        // calculate the orderHash
-        bytes32 orderHash = calculateBridgelessOrderHash_Simple(order);
-
         // verify the order signature
-        address recoveredAddress = ECDSA.recover(orderHash, signature.v, signature.r, signature.s);
         require(
-            recoveredAddress == signer,
-            "Bridgeless._validateOrder_Simple: recoveredAddress != signer"
+            signer == ECDSA.recover(
+                // calculate the orderHash
+                calculateBridgelessOrderHash_Simple(order),
+                signature.v,
+                signature.r,
+                signature.s
+            ),
+            "Bridgeless._validateOrder_Simple: signer != recoveredAddress"
         );
     }
 
