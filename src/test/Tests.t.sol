@@ -135,7 +135,7 @@ contract Tests is
         bridgeless = new Bridgeless();
 
         // initialize memory structs
-        BridgelessOrder memory order;
+        BridgelessOrder_Simple memory order;
         Signature memory orderSignature;
 
         // check chainId
@@ -148,7 +148,7 @@ contract Tests is
 
         if (swapForNative) {
             // swap for native token
-            order.tokenOut = address(0);
+            order.orderBase.tokenOut = address(0);
         }
 
         // for testing on forked ETH mainnet
@@ -168,7 +168,7 @@ contract Tests is
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = ETH_DAI;
+                order.orderBase.tokenOut = ETH_DAI;
             }
         }
 
@@ -189,7 +189,7 @@ contract Tests is
  
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = POLYGON_DAI;
+                order.orderBase.tokenOut = POLYGON_DAI;
             }
        }
 
@@ -210,7 +210,7 @@ contract Tests is
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = ARBI_DAI;
+                order.orderBase.tokenOut = ARBI_DAI;
             }
         }
 
@@ -231,7 +231,7 @@ contract Tests is
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = AVAX_DAI;
+                order.orderBase.tokenOut = AVAX_DAI;
             }
         }
 
@@ -252,7 +252,7 @@ contract Tests is
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = FTM_DAI;
+                order.orderBase.tokenOut = FTM_DAI;
             }
         }
 
@@ -273,7 +273,7 @@ contract Tests is
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = BUSD;
+                order.orderBase.tokenOut = BUSD;
             }
         }
 
@@ -289,13 +289,13 @@ contract Tests is
         uint256 _deadline = type(uint256).max;
 
         // set up the order
-        order.tokenIn = tokenToSwap;
-        order.amountIn = _amountIn;
-        order.amountOutMin = _amountOutMin;
-        order.deadline = _deadline;
+        order.orderBase.tokenIn = tokenToSwap;
+        order.orderBase.amountIn = _amountIn;
+        order.orderBase.amountOutMin = _amountOutMin;
+        order.orderBase.deadline = _deadline;
 
         // get the order hash
-        orderHash = bridgeless.calculateBridgelessOrderHash(user, order);
+        orderHash = bridgeless.calculateBridgelessOrderHash_Simple(user, order);
         // get order signature and copy it over to struct
         (v, r, s) = cheats.sign(user_priv_key, orderHash);
         orderSignature.v = v;
@@ -305,7 +305,7 @@ contract Tests is
         // get the permit hash
         bytes32 permitHash;
         {
-            IERC20Permit permitToken = IERC20Permit(order.tokenIn);
+            IERC20Permit permitToken = IERC20Permit(order.orderBase.tokenIn);
             uint256 nonce = permitToken.nonces(user);
             bytes32 domainSeparator = permitToken.DOMAIN_SEPARATOR();
 
@@ -333,7 +333,7 @@ contract Tests is
 
         // send tokens to the user from existing whale address, purely for testing
         cheats.startPrank(addressToSendTokenFrom);
-        IERC20(order.tokenIn).transfer(user, _amountIn);
+        IERC20(order.orderBase.tokenIn).transfer(user, _amountIn);
         cheats.stopPrank();
 
         // set up calls for gasless swap
@@ -371,7 +371,7 @@ contract Tests is
             // function fulfillOrder(
             //     IBridgelessCallee swapper,
             //     address tokenOwner,
-            //     BridgelessOrder calldata order,
+            //     BridgelessOrder_Simple calldata order,
             //     Signature calldata signature,
             //     bytes calldata extraCalldata
             // )
@@ -392,7 +392,7 @@ contract Tests is
         cheats.stopPrank();
 
         // log address balances
-        uint256 userBalance = _getUserBalance(user, order.tokenOut);
+        uint256 userBalance = _getUserBalance(user, order.orderBase.tokenOut);
         emit log_named_uint("userBalance", userBalance);
         require(userBalance >= _amountOutMin, "order not fulfilled correctly!");
     }
@@ -404,7 +404,7 @@ contract Tests is
         bridgeless = new Bridgeless();
 
         // initialize memory structs
-        BridgelessOrder[] memory orders = new BridgelessOrder[](numberUsers);
+        BridgelessOrder_Simple[] memory orders = new BridgelessOrder_Simple[](numberUsers);
         Signature[] memory orderSignatures = new Signature[](numberUsers);
         Signature[] memory permitSignatures = new Signature[](numberUsers);
         address[] memory tokenOwners = new address[](numberUsers);
@@ -449,13 +449,13 @@ contract Tests is
 
         // set up the orders
         for (uint256 i; i < numberUsers; ++i) {
-            orders[i].tokenIn = tokenToSwap;
-            orders[i].amountIn = _amountIn;
-            orders[i].amountOutMin = _amountOutMin;
-            orders[i].deadline = _deadline;
+            orders[i].orderBase.tokenIn = tokenToSwap;
+            orders[i].orderBase.amountIn = _amountIn;
+            orders[i].orderBase.amountOutMin = _amountOutMin;
+            orders[i].orderBase.deadline = _deadline;
 
             // get the order hash
-            orderHash = bridgeless.calculateBridgelessOrderHash(users[i], orders[i]);
+            orderHash = bridgeless.calculateBridgelessOrderHash_Simple(users[i], orders[i]);
             // get order signature and copy it over to struct
             (v, r, s) = cheats.sign(user_priv_keys[i], orderHash);
             orderSignatures[i].v = v;
@@ -465,7 +465,7 @@ contract Tests is
             // get the permit hash
             bytes32 permitHash;
             {
-                IERC20Permit permitToken = IERC20Permit(orders[i].tokenIn);
+                IERC20Permit permitToken = IERC20Permit(orders[i].orderBase.tokenIn);
                 uint256 nonce = permitToken.nonces(users[i]);
                 bytes32 domainSeparator = permitToken.DOMAIN_SEPARATOR();
 
@@ -495,7 +495,7 @@ contract Tests is
 
             // send tokens to the user from existing whale address, purely for testing
             cheats.startPrank(addressToSendTokenFrom);
-            IERC20(orders[i].tokenIn).transfer(users[i], _amountIn);
+            IERC20(orders[i].orderBase.tokenIn).transfer(users[i], _amountIn);
             cheats.stopPrank();
 
             // set up the `token.permit` calls
@@ -534,7 +534,7 @@ contract Tests is
             // function fulfillOrders(
             //     IBridgelessCallee swapper,
             //     address[] calldata tokenOwners,
-            //     BridgelessOrder[] calldata orders,
+            //     BridgelessOrder_Simple[] calldata orders,
             //     Signature[] calldata signatures,
             //     bytes calldata extraCalldata
             // )
@@ -556,7 +556,7 @@ contract Tests is
 
         // log address balances
         for (uint256 i; i < numberUsers; ++i) {
-            uint256 userBalance = _getUserBalance(users[i], orders[i].tokenOut);
+            uint256 userBalance = _getUserBalance(users[i], orders[i].orderBase.tokenOut);
             emit log_named_uint("userBalance", userBalance);
             require(userBalance >= _amountOutMin, "order not fulfilled correctly!");    
         }  
