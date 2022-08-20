@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
+
 // Ownable version of Multicall3
 contract Multicall_Ownable is
     Ownable
