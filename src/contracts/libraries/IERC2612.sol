@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-// based on "@openzeppelin/contracts/interfaces/draft-IERC2612.sol", but including the `name` and `version` functions in the interface
+// based on "@openzeppelin/contracts/interfaces/draft-IERC2612.sol". However, this includes the `name` and `version` functions in the interface as well.
 interface IERC2612 is
     IERC20Metadata
 {
