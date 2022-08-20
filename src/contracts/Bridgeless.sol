@@ -58,7 +58,7 @@ contract Bridgeless is
         // run the function
         _;
 
-        // verify that the `tokenOwner` received *at least* `amountOutMin` in `tokenOut` *after* function
+        // verify that the `tokenOwner` received *at least* `amountOutMin` in `tokenOut` *after* function has run
         require(
             _getUserBalance(tokenOwner, tokenOut) - ownerBalanceBefore >= amountOutMin,
             "Bridgeless.checkOrderExecution: amountOutMin not met!"
@@ -100,8 +100,6 @@ contract Bridgeless is
         // modifier to verify correct order execution
         checkOrderExecution(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
     {
-        emit log_named_uint("_getUserBalance(tokenOwner, tokenOut) -- really before", _getUserBalance(tokenOwner, order.orderBase.tokenOut));
-
         // verify that `tokenOwner` did indeed sign `order` and that it is still valid
         _validateOrder_Simple(tokenOwner, order, signature);
 
@@ -176,10 +174,13 @@ contract Bridgeless is
 
         // optimisically transfer the tokens to `swapper`
         // assumes `permit` has already been called, or allowance has elsewise been provided!
-        for (uint256 i; i < ownersLength;) {
-            IERC20(orders[i].orderBase.tokenIn).safeTransferFrom(tokenOwners[i], address(swapper), orders[i].orderBase.amountIn);
-            unchecked {
-                ++i;
+        // scoped block used here to 'avoid stack too deep' errors
+        {
+            for (uint256 i; i < ownersLength;) {
+                IERC20(orders[i].orderBase.tokenIn).safeTransferFrom(tokenOwners[i], address(swapper), orders[i].orderBase.amountIn);
+                unchecked {
+                    ++i;
+                }
             }
         }
 
