@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.12;
 
-import "@openzeppelin/contracts/interfaces/draft-IERC2612.sol";
+import "./IERC2612.sol";
 import "./IDAILikePermit.sol";
 
 library PermitTokenTypes {
@@ -30,6 +30,77 @@ library PermitTokenTypes {
     bytes32 public constant DAILIKE_PERMIT_TYPEHASH = 0xea2aa0a1be11a07ed86d755c93467f4f82362b452371d1ba94d1715123511acb;
 
 
+    function findDomainSeparator_DAILike(
+        IDAILikePermit permitToken
+    )
+        public view returns (bytes32 DOMAIN_SEPARATOR)
+    {
+        DOMAIN_SEPARATOR = findDomainSeparator_DAILike(
+            permitToken,
+            block.chainid,
+            permitToken.name(),
+            permitToken.version()
+        );
+        return DOMAIN_SEPARATOR;
+    }
+
+
+    function findDomainSeparator_DAILike(
+        IDAILikePermit permitToken,
+        uint256 chainId,
+        string memory name,
+        string memory version
+    )
+        public pure returns (bytes32 DOMAIN_SEPARATOR)
+    {
+        // calculation from DAI code here -- https://etherscan.io/address/0x6b175474e89094c44da98b954eedeac495271d0f#code
+        DOMAIN_SEPARATOR = keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256(bytes(name)),
+            keccak256(bytes(version)),
+            chainId,
+            address(permitToken)
+        ));
+        return DOMAIN_SEPARATOR;
+    }
+
+    function findDomainSeparator_ERC2612(
+        IERC2612 permitToken
+    )
+        public view returns (bytes32 DOMAIN_SEPARATOR)
+    {
+        DOMAIN_SEPARATOR = findDomainSeparator_ERC2612(
+            permitToken,
+            block.chainid,
+            permitToken.name(),
+            permitToken.version()
+        );
+        return DOMAIN_SEPARATOR;
+    }
+
+    function findDomainSeparator_ERC2612(
+        IERC2612 permitToken,
+        uint256 chainId,
+        string memory name,
+        string memory version
+    )
+        public pure returns (bytes32 DOMAIN_SEPARATOR)
+    {
+        // calculation from USDC implementation code here -- https://etherscan.io/address/0xa2327a938febf5fec13bacfb16ae10ecbc4cbdcf#code
+        DOMAIN_SEPARATOR = 
+            keccak256(
+                abi.encode(
+                    // keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+                    0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f,
+                    keccak256(bytes(name)),
+                    keccak256(bytes(version)),
+                    chainId,
+                    address(permitToken)
+                )
+        );
+        return DOMAIN_SEPARATOR;
+    }
+
 
 
     // ERC2612-compliant ("IERC20Permit") Tokens
@@ -39,7 +110,7 @@ library PermitTokenTypes {
         address spender,
         uint256 value,
         uint256 deadline,
-        IERC20Permit permitToken
+        IERC2612 permitToken
     )
         public view returns (bytes32 permitHash)
     {
@@ -149,7 +220,7 @@ library PermitTokenTypes {
     ) 
         public pure returns (bytes32 permitHash) 
     {
-        // calculation from DAI implementation code here -- https://etherscan.io/address/0x6b175474e89094c44da98b954eedeac495271d0f#code
+        // calculation from DAI code here -- https://etherscan.io/address/0x6b175474e89094c44da98b954eedeac495271d0f#code
 
         permitHash =
             keccak256(
