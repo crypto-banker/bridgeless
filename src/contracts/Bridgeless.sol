@@ -16,9 +16,25 @@ contract Bridgeless is
     /// @notice The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
 
-    /// @notice The EIP-712 typehash for the order struct used by the contract
+    // struct BridgelessOrder_Base {
+    //     // ERC20 token to trade
+    //     address tokenIn;
+    //     // amount of token to trade
+    //     uint256 amountIn;
+    //     // desired token to trade into
+    //     address tokenOut;
+    //     // minimum amount of native token to receive
+    //     uint256 amountOutMin;
+    //     // signature expiration
+    //     uint256 deadline;
+    // }
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple` order struct used by the contract
     bytes32 public constant ORDER_TYPEHASH_Simple = keccak256(
-        "BridgelessOrder_Simple(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline,uint256 feeBips,uint256 nonce)");
+        "BridgelessOrder_Simple(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline)");
+
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH_WithNonce = keccak256(
+        "BridgelessOrder_WithNonce(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline,address nonce)");
 
     /// @notice EIP-712 Domain separator
     bytes32 public immutable DOMAIN_SEPARATOR;
@@ -43,7 +59,7 @@ contract Bridgeless is
      * @param tokenOwner Address of the user whose order is being fulfilled.
      * @param order A valid `BridgelessOrder_Simple` created by `tokenOwner`, specifying their desired order parameters.
      * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
-     *        by checking against `calculateBridgelessOrderHash_Simple(tokenOwner, order)`
+     *        by checking against `calculateBridgelessOrderHash_Simple(order)`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
      */
     function fulfillOrder(
@@ -59,8 +75,11 @@ contract Bridgeless is
         // get the `tokenOwner`'s balance of the `tokenOut`, prior to any swap
         uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, order.orderBase.tokenOut);
 
+        // _checkOrderSignature(order, signature);
+        // _fufillOrder(swapper, tokenOwner, order, extraCalldata);
+
         // calculate each `tokenOwner`'s orderHash
-        bytes32 orderHash = calculateBridgelessOrderHash_Simple(tokenOwner, order);
+        bytes32 orderHash = calculateBridgelessOrderHash_Simple(order);
         // increase the `tokenOwner`'s nonce to help prevent signature re-use
         unchecked {
             ++nonces[tokenOwner];
@@ -97,7 +116,7 @@ contract Bridgeless is
      * @param tokenOwners Addresses of the users whose orders are being fulfilled.
      * @param orders A valid set of `BridgelessOrder_Simple`s created by `tokenOwners`, specifying their desired order parameters.
      * @param signatures A valid set of ECDSA signatures of `orders` provided by `tokenOwners`. Thess signature are verified
-     *        by checking against `calculateBridgelessOrderHash_Simple(tokenOwners[i], orders[i])`
+     *        by checking against `calculateBridgelessOrderHash_Simple(orders[i])`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
      */
     function fulfillOrders(
@@ -135,7 +154,7 @@ contract Bridgeless is
                 ownerBalancesBefore[i] = _getUserBalance(tokenOwners[i], orders[i].orderBase.tokenOut);
 
                 // calculate each `tokenOwner`'s orderHash
-                orderHash = calculateBridgelessOrderHash_Simple(tokenOwners[i], orders[i]);
+                orderHash = calculateBridgelessOrderHash_Simple(orders[i]);
 
                 // verify the BridgelessOrder signature
                 recoveredAddress = ECDSA.recover(orderHash, signatures[i].v, signatures[i].r, signatures[i].s);
@@ -179,10 +198,9 @@ contract Bridgeless is
 
     /**
      * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Simple`
-     * @param owner Signer of `order`
      * @param order A `BridgelessOrder_Simple`-type order, either signed or to-be-signed by `owner`
      */
-    function calculateBridgelessOrderHash_Simple(address owner, BridgelessOrder_Simple calldata order) public view returns (bytes32) {
+    function calculateBridgelessOrderHash_Simple(BridgelessOrder_Simple calldata order) public view returns (bytes32) {
         bytes32 orderHash = keccak256(
             abi.encode(
                 ORDER_TYPEHASH_Simple,
@@ -190,8 +208,27 @@ contract Bridgeless is
                 order.orderBase.amountIn,
                 order.orderBase.tokenOut,
                 order.orderBase.amountOutMin,
+                order.orderBase.deadline
+            )
+        );
+        return orderHash;
+    }
+
+    /**
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_WithNonce`
+     * @param owner Signer of `order`
+     * @param order A `BridgelessOrder_WithNonce`-type order, either signed or to-be-signed by `owner`
+     */
+    function calculateBridgelessOrderHash_WithNonce(address owner, BridgelessOrder_WithNonce calldata order) public view returns (bytes32) {
+        bytes32 orderHash = keccak256(
+            abi.encode(
+                ORDER_TYPEHASH_WithNonce,
+                order.orderBase.tokenIn,
+                order.orderBase.amountIn,
+                order.orderBase.tokenOut,
+                order.orderBase.amountOutMin,
                 order.orderBase.deadline,
-                nonces[owner]
+                order.nonce
             )
         );
         return orderHash;

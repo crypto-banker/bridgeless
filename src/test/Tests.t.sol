@@ -295,7 +295,7 @@ contract Tests is
         order.orderBase.deadline = _deadline;
 
         // get the order hash
-        orderHash = bridgeless.calculateBridgelessOrderHash_Simple(user, order);
+        orderHash = bridgeless.calculateBridgelessOrderHash_Simple(order);
         // get order signature and copy it over to struct
         (v, r, s) = cheats.sign(user_priv_key, orderHash);
         orderSignature.v = v;
@@ -455,7 +455,7 @@ contract Tests is
             orders[i].orderBase.deadline = _deadline;
 
             // get the order hash
-            orderHash = bridgeless.calculateBridgelessOrderHash_Simple(users[i], orders[i]);
+            orderHash = bridgeless.calculateBridgelessOrderHash_Simple(orders[i]);
             // get order signature and copy it over to struct
             (v, r, s) = cheats.sign(user_priv_keys[i], orderHash);
             orderSignatures[i].v = v;
