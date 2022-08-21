@@ -3,6 +3,8 @@ pragma solidity ^0.8.12;
 
 interface BridgelessStructs {
     struct BridgelessOrder_Base {
+        // order signatory
+        address signer;
         // ERC20 token to trade
         address tokenIn;
         // amount of token to trade

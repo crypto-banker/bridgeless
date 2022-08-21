@@ -50,19 +50,18 @@ contract Bridgeless is
      * @notice Fulfills a single `BridgelessOrder_Simple`, swapping `order.orderBase.amountIn` of the ERC20 token `order.orderBase.tokenIn` for
      *          *at least* `order.orderBase.amountOutMin` of `order.orderBase.TokenOut`.
      * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
-     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `tokenOwner` to this contract!
-     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(tokenOwner, order, extraCalldata)`.
-     * @param tokenOwner Address of the user whose order is being fulfilled.
-     * @param order A valid `BridgelessOrder_Simple` created by `tokenOwner`, specifying their desired order parameters.
-     * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `order.orderBase.signer` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(order, extraCalldata)`.
+     * @param order A valid `BridgelessOrder_Simple` created by `order.orderBase.signer`, specifying their desired order parameters.
+     * @param signature A valid ECDSA signature of `order` provided by `order.orderBase.signer`. This signature is verified
      *        by checking against `calculateBridgelessOrderHash_Simple(order)`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
-     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**.
-     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided
+     *       by `order.orderBase.signer` to **this contract**.
+     * @dev Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
     function fulfillOrder_Simple(
         IBridgelessCallee swapper,
-        address tokenOwner,
         BridgelessOrder_Simple calldata order,
         Signature calldata signature,
         bytes calldata extraCalldata
@@ -71,15 +70,15 @@ contract Bridgeless is
         // @dev Modifier to verify that order is still valid
         checkOrderDeadline(order.orderBase.deadline)
         // @dev Modifier to verify correct order execution
-        checkOrderFulfillment(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        checkOrderFulfillment(order.orderBase.signer, order.orderBase.tokenOut, order.orderBase.amountOutMin)
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
-        _processOrderSignature_Simple(tokenOwner, order, signature);
+        // @dev Verify that `order.orderBase.signer` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_Simple(order, signature);
+        // @dev Fulfill the `order`
         _fulfillOrder_Base(
             swapper,
-            tokenOwner,
             order.orderBase,
             extraCalldata
         );
@@ -89,19 +88,18 @@ contract Bridgeless is
      * @notice Fulfills a single `BridgelessOrder_Simple_OTC`, swapping `order.orderBase.amountIn` of the ERC20 token `order.orderBase.tokenIn` for
      *          *at least* `order.orderBase.amountOutMin` of `order.orderBase.TokenOut`.
      * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
-     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `tokenOwner` to this contract!
-     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(tokenOwner, order, extraCalldata)`.
-     * @param tokenOwner Address of the user whose order is being fulfilled.
-     * @param order A valid `BridgelessOrder_Simple_OTC` created by `tokenOwner`, specifying their desired order parameters.
-     * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `order.orderBase.signer` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(order, extraCalldata)`.
+     * @param order A valid `BridgelessOrder_Simple_OTC` created by `order.orderBase.signer`, specifying their desired order parameters.
+     * @param signature A valid ECDSA signature of `order` provided by `order.orderBase.signer`. This signature is verified
      *        by checking against `calculateBridgelessOrderHash_Simple_OTC(order)`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
-     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**.
-     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided
+     *       by `order.orderBase.signer` to **this contract**.
+     * @dev Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
     function fulfillOrder_Simple_OTC(
         IBridgelessCallee swapper,
-        address tokenOwner,
         BridgelessOrder_Simple_OTC calldata order,
         Signature calldata signature,
         bytes calldata extraCalldata
@@ -110,15 +108,15 @@ contract Bridgeless is
         // @dev Modifier to verify that order is still valid
         checkOrderDeadline(order.orderBase.deadline)
         // @dev Modifier to verify correct order execution
-        checkOrderFulfillment(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        checkOrderFulfillment(order.orderBase.signer, order.orderBase.tokenOut, order.orderBase.amountOutMin)
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
-        _processOrderSignature_Simple_OTC(tokenOwner, order, signature);
+        // @dev Verify that `order.orderBase.signer` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_Simple_OTC(order, signature);
+        // @dev Fulfill the `order`
         _fulfillOrder_Base(
             swapper,
-            tokenOwner,
             order.orderBase,
             extraCalldata
         );
@@ -128,19 +126,18 @@ contract Bridgeless is
      * @notice Fulfills a single `BridgelessOrder_WithNonce`, swapping `order.orderBase.amountIn` of the ERC20 token `order.orderBase.tokenIn` for
      *          *at least* `order.orderBase.amountOutMin` of `order.orderBase.TokenOut`.
      * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
-     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `tokenOwner` to this contract!
-     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(tokenOwner, order, extraCalldata)`.
-     * @param tokenOwner Address of the user whose order is being fulfilled.
-     * @param order A valid `BridgelessOrder_WithNonce` created by `tokenOwner`, specifying their desired order parameters.
-     * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `order.orderBase.signer` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(order, extraCalldata)`.
+     * @param order A valid `BridgelessOrder_WithNonce` created by `order.orderBase.signer`, specifying their desired order parameters.
+     * @param signature A valid ECDSA signature of `order` provided by `order.orderBase.signer`. This signature is verified
      *        by checking against `calculateBridgelessOrderHash_WithNonce(order)`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
-     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**.
-     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided
+     *       by `order.orderBase.signer` to **this contract**.
+     * @dev Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
     function fulfillOrder_WithNonce(
         IBridgelessCallee swapper,
-        address tokenOwner,
         BridgelessOrder_WithNonce calldata order,
         Signature calldata signature,
         bytes calldata extraCalldata
@@ -149,15 +146,15 @@ contract Bridgeless is
         // @dev Modifier to verify that order is still valid
         checkOrderDeadline(order.orderBase.deadline)
         // @dev Modifier to verify correct order execution
-        checkOrderFulfillment(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        checkOrderFulfillment(order.orderBase.signer, order.orderBase.tokenOut, order.orderBase.amountOutMin)
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
-        _processOrderSignature_WithNonce(tokenOwner, order, signature);
+        // @dev Verify that `order.orderBase.signer` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_WithNonce(order, signature);
+        // @dev Fulfill the `order`
         _fulfillOrder_Base(
             swapper,
-            tokenOwner,
             order.orderBase,
             extraCalldata
         );
@@ -167,19 +164,19 @@ contract Bridgeless is
      * @notice Fulfills a single `BridgelessOrder_WithNonce_OTC`, swapping `order.orderBase.amountIn` of the ERC20 token `order.orderBase.tokenIn` for
      *          *at least* `order.orderBase.amountOutMin` of `order.orderBase.TokenOut`.
      * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
-     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `tokenOwner` to this contract!
-     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(tokenOwner, order, extraCalldata)`.
-     * @param tokenOwner Address of the user whose order is being fulfilled.
-     * @param order A valid `BridgelessOrder_WithNonce_OTC` created by `tokenOwner`, specifying their desired order parameters.
-     * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `order.orderBase.signer` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(order, extraCalldata)`.
+     * @param order.orderBase.signer Address of the user whose order is being fulfilled.
+     * @param order A valid `BridgelessOrder_WithNonce_OTC` created by `order.orderBase.signer`, specifying their desired order parameters.
+     * @param signature A valid ECDSA signature of `order` provided by `order.orderBase.signer`. This signature is verified
      *        by checking against `calculateBridgelessOrderHash_WithNonce(order)`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
-     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**.
-     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided
+     *       by `order.orderBase.signer` to **this contract**.
+     * @dev Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
     function fulfillOrder_WithNonce_OTC(
         IBridgelessCallee swapper,
-        address tokenOwner,
         BridgelessOrder_WithNonce_OTC calldata order,
         Signature calldata signature,
         bytes calldata extraCalldata
@@ -188,15 +185,15 @@ contract Bridgeless is
         // @dev Modifier to verify that order is still valid
         checkOrderDeadline(order.orderBase.deadline)
         // @dev Modifier to verify correct order execution
-        checkOrderFulfillment(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        checkOrderFulfillment(order.orderBase.signer, order.orderBase.tokenOut, order.orderBase.amountOutMin)
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
-        _processOrderSignature_WithNonce_OTC(tokenOwner, order, signature);
+        // @dev Verify that `order.orderBase.signer` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_WithNonce_OTC(order, signature);
+        // @dev Fulfill the `order`
         _fulfillOrder_Base(
             swapper,
-            tokenOwner,
             order.orderBase,
             extraCalldata
         );
@@ -206,21 +203,19 @@ contract Bridgeless is
      * @notice Fulfills any arbitrary number of `BridgelessOrder_Simple`s, swapping `order.orderBase.amountIn`
      *         of the ERC20 token `orders[i].orderBase.tokenIn` for *at least* `orders[i].orderBase.amountOutMin` of `orders[i].orderBase.TokenOut`.
      * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
-     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from each of the `tokenOwners` to this contract!
-     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCalls(tokenOwners, orders, extraCalldata)`
-     * @param tokenOwners Addresses of the users whose orders are being fulfilled.
-     * @param orders A valid set of `BridgelessOrder_Simple`s created by `tokenOwners`, specifying their desired order parameters.
-     * @param signatures A valid set of ECDSA signatures of `orders` provided by `tokenOwners`. Thess signature are verified
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from each of the `order.signer`s to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCalls(orders, extraCalldata)`
+     * @param orders A valid set of `BridgelessOrder_Simple`s created by `order.signer`s, specifying their desired order parameters.
+     * @param signatures A valid set of ECDSA signatures of `orders` provided by `order.signer`s. These signature are verified
      *        by checking against `calculateBridgelessOrderHash_Simple(orders[i])`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
-     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**,
-     *      as well as *for each order*.
-     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided
+     *       by `order.orderBase.signer` to **this contract**.
+     * @dev Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
 
     function fulfillOrders_Simple(
         IBridgelessCallee swapper,
-        address[] calldata tokenOwners,
         BridgelessOrder_Simple[] calldata orders,
         Signature[] calldata signatures,
         bytes calldata extraCalldata
@@ -230,22 +225,18 @@ contract Bridgeless is
         nonReentrant
     {
         // cache array length in memory
-        uint256 ownersLength = tokenOwners.length;
+        uint256 ordersLength = orders.length;
         // @dev Sanity check on input lengths.
         {
             require(
-                ownersLength == orders.length,
-                "Bridgeless.fulfillOrders: tokenOwners.length != orders.length"
-            );
-            require(
-                ownersLength == signatures.length,
-                "Bridgeless.fulfillOrders: tokenOwners.length != signatures.length"
+                ordersLength == signatures.length,
+                "Bridgeless.fulfillOrders: orders.length != signatures.length"
             );
         }
 
         // @dev Verify that the `orders` are all still valid.
         {
-            for (uint256 i; i < ownersLength;) {
+            for (uint256 i; i < ordersLength;) {
                 _checkOrderDeadline(orders[i].orderBase.deadline);
                 unchecked {
                     ++i;
@@ -253,22 +244,22 @@ contract Bridgeless is
             }
         }
 
-        // @dev Verify that the `tokenOwners` did indeed sign the `orders`.
+        // @dev Verify that the `order.signer`s did indeed sign the `orders`.
         {
-            for (uint256 i; i < ownersLength;) {
-                _processOrderSignature_Simple(tokenOwners[i], orders[i], signatures[i]);
+            for (uint256 i; i < ordersLength;) {
+                _processOrderSignature_Simple(orders[i], signatures[i]);
                 unchecked {
                     ++i;
                 }
             }
         }
 
-        // @dev Get the `tokenOwners`'s balances of the `tokenOut`s and cache them in memory, prior to any swap.
-        uint256[] memory ownerBalancesBefore = new uint256[](ownersLength);
+        // @dev Get the `order.signer`'s balances of the `tokenOut`s and cache them in memory, prior to any swap.
+        uint256[] memory ownerBalancesBefore = new uint256[](ordersLength);
         // scoped block used here to 'avoid stack too deep' errors
         {
-            for (uint256 i; i < ownersLength;) {
-                ownerBalancesBefore[i] = _getUserBalance(tokenOwners[i], orders[i].orderBase.tokenOut);
+            for (uint256 i; i < ordersLength;) {
+                ownerBalancesBefore[i] = _getUserBalance(orders[i].orderBase.signer, orders[i].orderBase.tokenOut);
                 unchecked {
                     ++i;
                 }
@@ -277,8 +268,8 @@ contract Bridgeless is
 
         // @dev Optimisically transfer all of the tokens to `swapper`
         {
-            for (uint256 i; i < ownersLength;) {
-                IERC20(orders[i].orderBase.tokenIn).safeTransferFrom(tokenOwners[i], address(swapper), orders[i].orderBase.amountIn);
+            for (uint256 i; i < ordersLength;) {
+                IERC20(orders[i].orderBase.tokenIn).safeTransferFrom(orders[i].orderBase.signer, address(swapper), orders[i].orderBase.amountIn);
                 unchecked {
                     ++i;
                 }
@@ -286,20 +277,20 @@ contract Bridgeless is
         }
 
         // @notice Forward on inputs and pass transaction execution onto arbitrary `swapper` contract
-        BridgelessOrder_Base[] memory orderBases = new BridgelessOrder_Base[](ownersLength);
+        BridgelessOrder_Base[] memory orderBases = new BridgelessOrder_Base[](ordersLength);
         {
-            for (uint256 i; i < ownersLength;) {
+            for (uint256 i; i < ordersLength;) {
                 orderBases[i] = orders[i].orderBase;
                 unchecked {
                     ++i;
                 }
             }
-        }        swapper.bridgelessCalls(tokenOwners, orderBases, extraCalldata);
+        }        swapper.bridgelessCalls(orderBases, extraCalldata);
 
-        // @de Verify that each of the `tokenOwners` received *at least* `orders[i].orderBase.amountOutMin` in `tokenOut[i]` from the swap.
-        for (uint256 i; i < ownersLength;) {
+        // @de Verify that each of the `order.signer`s received *at least* `orders[i].orderBase.amountOutMin` in `tokenOut[i]` from the swap.
+        for (uint256 i; i < ordersLength;) {
             require(
-                _getUserBalance(tokenOwners[i], orders[i].orderBase.tokenOut) - ownerBalancesBefore[i] >= orders[i].orderBase.amountOutMin,
+                _getUserBalance(orders[i].orderBase.signer, orders[i].orderBase.tokenOut) - ownerBalancesBefore[i] >= orders[i].orderBase.amountOutMin,
                 "Bridgeless.fulfillOrders: orders[i].orderBase.amountOutMin not met!"
             );
             unchecked {
@@ -312,24 +303,23 @@ contract Bridgeless is
      * @notice Fulfills a single `BridgelessOrder_Base`, swapping `orderBase.amountIn` of the ERC20 token `orderBase.tokenIn` for *at least*
      *          `orderBase.amountOutMin` of `orderBase.TokenOut`.
      * @notice Note that an input of `orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
-     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `tokenOwner` to this contract!
-     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(tokenOwner, order, extraCalldata)`.
-     * @param tokenOwner Address of the user whose order is being fulfilled.
-     * @param orderBase A valid `BridgelessOrder_Base` created by `tokenOwner`, specifying their desired order parameters.
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `orderBase.signer` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(order, extraCalldata)`.
+     * @param orderBase A valid `BridgelessOrder_Base` created by `orderBase.signer`, specifying their desired order parameters.
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
-     * @dev This function assumes that allowance of at least `orderBase.amountIn` of `orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**.
-     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided
+     *       by `order.orderBase.signer` to **this contract**.
+     * @dev Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
     function _fulfillOrder_Base(
         IBridgelessCallee swapper,
-        address tokenOwner,
         BridgelessOrder_Base calldata orderBase,
         bytes calldata extraCalldata
     )
         internal
     {
-        // @dev Optimisically transfer the tokens to `swapper`
-        IERC20(orderBase.tokenIn).safeTransferFrom(tokenOwner, address(swapper), orderBase.amountIn);
+        // @dev Optimisically transfer the tokens from `orderBase.signer` to `swapper`
+        IERC20(orderBase.tokenIn).safeTransferFrom(orderBase.signer, address(swapper), orderBase.amountIn);
 
         // @notice Forward on inputs and pass transaction execution onto arbitrary `swapper` contract
         /**
@@ -337,7 +327,7 @@ contract Bridgeless is
          *          `extraCalldata` can be any set of execution instructions for the `swapper`
          * @notice After execution of `swapper` completes, control is handed back to this contract and order fulfillment is verified.
          */
-        swapper.bridgelessCall(tokenOwner, orderBase, extraCalldata);   
+        swapper.bridgelessCall(orderBase, extraCalldata);   
     }
 
     // fetches the `user`'s balance of `token`, where `token == address(0)` indicates the chain's native token

@@ -124,7 +124,7 @@ contract Tests is
 
         // set up the order
         BridgelessOrder_Simple memory order;
-        order.orderBase = _makeOrder_Base();
+        order.orderBase = _makeOrder_Base(user);
 
         // send tokens to the user from existing whale address, purely for testing
         cheats.startPrank(addressToSendTokenFrom);
@@ -149,7 +149,7 @@ contract Tests is
         // set up the `Bridgeless.fulfillOrder_Simple` call
         callsForMulticall[1].target = address(bridgeless);
         bytes memory emptyBytes;
-        callsForMulticall[1].callData = _formatFulfillOrderCall_Simple(user, order, orderSignature, emptyBytes);
+        callsForMulticall[1].callData = _formatFulfillOrderCall_Simple(order, orderSignature, emptyBytes);
 
         // actually make the gasless swap
         cheats.startPrank(submitter);
@@ -163,7 +163,7 @@ contract Tests is
 
         // set up the order
         BridgelessOrder_Simple_OTC memory order;
-        order.orderBase = _makeOrder_Base();
+        order.orderBase = _makeOrder_Base(user);
         order.executor = submitter;
 
         // send tokens to the user from existing whale address, purely for testing
@@ -189,7 +189,7 @@ contract Tests is
         // set up the `Bridgeless.fulfillOrder_Simple_OTC` call
         callsForMulticall[1].target = address(bridgeless);
         bytes memory emptyBytes;
-        callsForMulticall[1].callData = _formatFulfillOrderCall_Simple_OTC(user, order, orderSignature, emptyBytes);
+        callsForMulticall[1].callData = _formatFulfillOrderCall_Simple_OTC(order, orderSignature, emptyBytes);
 
         // actually make the gasless swap
         cheats.startPrank(submitter);
@@ -203,7 +203,7 @@ contract Tests is
 
         // set up the order
         BridgelessOrder_WithNonce memory order;
-        order.orderBase = _makeOrder_Base();
+        order.orderBase = _makeOrder_Base(user);
         order.nonce = _nonce;
 
         // send tokens to the user from existing whale address, purely for testing
@@ -229,7 +229,7 @@ contract Tests is
         // set up the `Bridgeless.fulfillOrder_WithNonce` call
         callsForMulticall[1].target = address(bridgeless);
         bytes memory emptyBytes;
-        callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce(user, order, orderSignature, emptyBytes);
+        callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce(order, orderSignature, emptyBytes);
 
         // actually make the gasless swap
         cheats.startPrank(submitter);
@@ -243,7 +243,7 @@ contract Tests is
 
         // set up the order
         BridgelessOrder_WithNonce_OTC memory order;
-        order.orderBase = _makeOrder_Base();
+        order.orderBase = _makeOrder_Base(user);
         order.nonce = _nonce;
         order.executor = submitter;
 
@@ -270,7 +270,7 @@ contract Tests is
         // set up the `Bridgeless.fulfillOrder_WithNonce_OTC` call
         callsForMulticall[1].target = address(bridgeless);
         bytes memory emptyBytes;
-        callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce_OTC(user, order, orderSignature, emptyBytes);
+        callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce_OTC(order, orderSignature, emptyBytes);
 
         // actually make the gasless swap
         cheats.startPrank(submitter);
@@ -289,16 +289,13 @@ contract Tests is
         BridgelessOrder_Simple[] memory orders = new BridgelessOrder_Simple[](numberUsers);
         Signature[] memory orderSignatures = new Signature[](numberUsers);
         Signature[] memory permitSignatures = new Signature[](numberUsers);
-        address[] memory tokenOwners = new address[](numberUsers);
         // set up calls for approvals + swap at end
         Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](numberUsers + 1);
 
         // set up the orders
         for (uint256 i; i < numberUsers; ++i) {
-            // set up tokenOwners struct
-            tokenOwners[i] = users[i];
-
             // fill in order parameters
+            orders[i].orderBase.signer = users[i];
             orders[i].orderBase.tokenIn = _tokenToSwap;
             orders[i].orderBase.amountIn = _amountIn;
             orders[i].orderBase.tokenOut = _tokenOut;
@@ -330,7 +327,6 @@ contract Tests is
             callsForMulticall[numberUsers].target = address(bridgeless);
             // function fulfillOrders(
             //     IBridgelessCallee swapper,
-            //     address[] calldata tokenOwners,
             //     BridgelessOrder_Simple[] calldata orders,
             //     Signature[] calldata signatures,
             //     bytes calldata extraCalldata
@@ -339,7 +335,6 @@ contract Tests is
             callsForMulticall[numberUsers].callData = abi.encodeWithSelector(
                 Bridgeless.fulfillOrders_Simple.selector,
                 bridgelessSwapperUniswap,
-                tokenOwners,
                 orders,
                 orderSignatures,
                 emptyBytes
@@ -556,7 +551,6 @@ contract Tests is
     // set up a `Bridgeless.fulfillOrder_Simple` call
     // currently use an `emptyBytes` arg for `extraCalldata`
     function _formatFulfillOrderCall_Simple(
-        address user,
         BridgelessOrder_Simple memory order,
         Signature memory orderSignature,
         bytes memory extraCalldata
@@ -565,7 +559,6 @@ contract Tests is
     {
         // function fulfillOrder(
         //     IBridgelessCallee swapper,
-        //     address tokenOwner,
         //     BridgelessOrder_Simple calldata order,
         //     Signature calldata signature,
         //     bytes calldata extraCalldata
@@ -574,7 +567,6 @@ contract Tests is
             Bridgeless.fulfillOrder_Simple.selector,
             // assumes `swapper` is `bridgelessSwapperUniswap`
             bridgelessSwapperUniswap,
-            user,
             order,
             orderSignature,
             extraCalldata
@@ -584,7 +576,6 @@ contract Tests is
     // set up a `Bridgeless.fulfillOrder_Simple_OTC` call
     // currently use an `emptyBytes` arg for `extraCalldata`
     function _formatFulfillOrderCall_Simple_OTC(
-        address user,
         BridgelessOrder_Simple_OTC memory order,
         Signature memory orderSignature,
         bytes memory extraCalldata
@@ -593,7 +584,6 @@ contract Tests is
     {
         // function fulfillOrder(
         //     IBridgelessCallee swapper,
-        //     address tokenOwner,
         //     BridgelessOrder_Simple_OTC calldata order,
         //     Signature calldata signature,
         //     bytes calldata extraCalldata
@@ -602,7 +592,6 @@ contract Tests is
             Bridgeless.fulfillOrder_Simple_OTC.selector,
             // assumes `swapper` is `bridgelessSwapperUniswap`
             bridgelessSwapperUniswap,
-            user,
             order,
             orderSignature,
             extraCalldata
@@ -612,7 +601,6 @@ contract Tests is
     // set up a `Bridgeless.fulfillOrder_WithNonce` call
     // currently use an `emptyBytes` arg for `extraCalldata`
     function _formatFulfillOrderCall_WithNonce(
-        address user,
         BridgelessOrder_WithNonce memory order,
         Signature memory orderSignature,
         bytes memory extraCalldata
@@ -621,7 +609,6 @@ contract Tests is
     {
         // function fulfillOrder(
         //     IBridgelessCallee swapper,
-        //     address tokenOwner,
         //     BridgelessOrder_WithNonce calldata order,
         //     Signature calldata signature,
         //     bytes calldata extraCalldata
@@ -630,7 +617,6 @@ contract Tests is
             Bridgeless.fulfillOrder_WithNonce.selector,
             // assumes `swapper` is `bridgelessSwapperUniswap`
             bridgelessSwapperUniswap,
-            user,
             order,
             orderSignature,
             extraCalldata
@@ -640,7 +626,6 @@ contract Tests is
     // set up a `Bridgeless.fulfillOrder_WithNonce_OTC` call
     // currently use an `emptyBytes` arg for `extraCalldata`
     function _formatFulfillOrderCall_WithNonce_OTC(
-        address user,
         BridgelessOrder_WithNonce_OTC memory order,
         Signature memory orderSignature,
         bytes memory extraCalldata
@@ -649,7 +634,6 @@ contract Tests is
     {
         // function fulfillOrder(
         //     IBridgelessCallee swapper,
-        //     address tokenOwner,
         //     BridgelessOrder_WithNonce_OTC calldata order,
         //     Signature calldata signature,
         //     bytes calldata extraCalldata
@@ -658,7 +642,6 @@ contract Tests is
             Bridgeless.fulfillOrder_WithNonce_OTC.selector,
             // assumes `swapper` is `bridgelessSwapperUniswap`
             bridgelessSwapperUniswap,
-            user,
             order,
             orderSignature,
             extraCalldata
@@ -672,7 +655,8 @@ contract Tests is
         bridgelessSwapperUniswap = new BridgelessSwapperUniswap(ROUTER);
     }
 
-    function _makeOrder_Base() internal view returns (BridgelessOrder_Base memory orderBase) {
+    function _makeOrder_Base(address _signer) internal view returns (BridgelessOrder_Base memory orderBase) {
+        orderBase.signer = _signer;
         orderBase.tokenIn = _tokenToSwap;
         orderBase.tokenOut = _tokenOut;
         orderBase.amountIn = _amountIn;

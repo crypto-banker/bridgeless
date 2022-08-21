@@ -58,7 +58,7 @@ contract BridgelessSwapperUniswap is
     // receive function to allow this contract to accept simple native-token transfers
     receive() external payable {}
 
-    function bridgelessCall(address swapDestination, BridgelessOrder_Base calldata orderBase, bytes memory) public {
+    function bridgelessCall(BridgelessOrder_Base calldata orderBase, bytes memory) public {
         // approve the router to transfer tokens
         IERC20(orderBase.tokenIn).safeApprove(address(ROUTER), orderBase.amountIn);
 
@@ -103,7 +103,7 @@ contract BridgelessSwapperUniswap is
             // check amount out
             uint256 amountOut = address(this).balance;
             require(amountOut >= orderBase.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < orderBase.amountOutMin");
-            Address.sendValue(payable(swapDestination), orderBase.amountOutMin);
+            Address.sendValue(payable(orderBase.signer), orderBase.amountOutMin);
             // transfer any remainder to `tx.origin`
             uint256 profit = amountOut - orderBase.amountOutMin;
             if (profit != 0) {
@@ -154,7 +154,7 @@ contract BridgelessSwapperUniswap is
             // check amount out
             uint256 amountOut = IERC20(orderBase.tokenOut).balanceOf(address(this));
             require(amountOut >= orderBase.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < orderBase.amountOutMin");
-            IERC20(orderBase.tokenOut).transfer(swapDestination, orderBase.amountOutMin);
+            IERC20(orderBase.tokenOut).transfer(orderBase.signer, orderBase.amountOutMin);
             // transfer any remainder to `tx.origin`
             uint256 profit = amountOut - orderBase.amountOutMin;
             if (profit != 0) {
@@ -165,11 +165,11 @@ contract BridgelessSwapperUniswap is
         }
     }
 
-    function bridgelessCalls(address[] calldata swapDestinations, BridgelessOrder_Base[] calldata orderBases, bytes calldata) external {
+    function bridgelessCalls(BridgelessOrder_Base[] calldata orderBases, bytes calldata) external {
         uint256 orderBasesLength = orderBases.length;
         bytes memory emptyBytes;
         for (uint256 i; i < orderBasesLength;) {
-            bridgelessCall(swapDestinations[i], orderBases[i], emptyBytes);
+            bridgelessCall(orderBases[i], emptyBytes);
 
             unchecked {
                 ++i;

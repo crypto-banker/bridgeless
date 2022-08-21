@@ -93,6 +93,7 @@ abstract contract BridgelessOrderSignatures is
             keccak256(
                 abi.encode(
                     ORDER_TYPEHASH_Base,
+                    orderBase.signer,
                     orderBase.tokenIn,
                     orderBase.amountIn,
                     orderBase.tokenOut,
@@ -152,48 +153,48 @@ abstract contract BridgelessOrderSignatures is
         );
     }
 
-    function _processOrderSignature_Simple(address signer, BridgelessOrder_Simple calldata order, Signature calldata signature) internal {
+    function _processOrderSignature_Simple(BridgelessOrder_Simple calldata order, Signature calldata signature) internal {
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash_Simple(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        _checkOrderSignature(signer, orderHash, signature);
+        _checkOrderSignature(order.orderBase.signer, orderHash, signature);
     }
 
-    function _processOrderSignature_Simple_OTC(address signer, BridgelessOrder_Simple_OTC calldata order, Signature calldata signature) internal {
+    function _processOrderSignature_Simple_OTC(BridgelessOrder_Simple_OTC calldata order, Signature calldata signature) internal {
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash_Simple_OTC(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        _checkOrderSignature(signer, orderHash, signature);
+        _checkOrderSignature(order.orderBase.signer, orderHash, signature);
     }
 
-    function _processOrderSignature_WithNonce(address signer, BridgelessOrder_WithNonce calldata order, Signature calldata signature) internal {
+    function _processOrderSignature_WithNonce(BridgelessOrder_WithNonce calldata order, Signature calldata signature) internal {
         // check nonce validity
-        if (nonceIsSpent[signer][order.nonce]) {
+        if (nonceIsSpent[order.orderBase.signer][order.nonce]) {
             revert("Bridgeless._processOrderSignature_WithNonce: nonce is already spent");
         }
         // mark nonce as spent
-        nonceIsSpent[signer][order.nonce] = true;
+        nonceIsSpent[order.orderBase.signer][order.nonce] = true;
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash_WithNonce(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        _checkOrderSignature(signer, orderHash, signature);
+        _checkOrderSignature(order.orderBase.signer, orderHash, signature);
     }
 
-    function _processOrderSignature_WithNonce_OTC(address signer, BridgelessOrder_WithNonce_OTC calldata order, Signature calldata signature) internal {
+    function _processOrderSignature_WithNonce_OTC(BridgelessOrder_WithNonce_OTC calldata order, Signature calldata signature) internal {
         // check nonce validity
-        if (nonceIsSpent[signer][order.nonce]) {
+        if (nonceIsSpent[order.orderBase.signer][order.nonce]) {
             revert("Bridgeless._processOrderSignature_WithNonce_OTC: nonce is already spent");
         }
         // mark nonce as spent
-        nonceIsSpent[signer][order.nonce] = true;
+        nonceIsSpent[order.orderBase.signer][order.nonce] = true;
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash_WithNonce_OTC(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        _checkOrderSignature(signer, orderHash, signature);
+        _checkOrderSignature(order.orderBase.signer, orderHash, signature);
 
     }
 

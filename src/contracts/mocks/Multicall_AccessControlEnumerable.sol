@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 
-// Ownable version of Multicall3
-contract Multicall_Ownable is
-    Ownable
+// 'AccessControlEnumerable' version of Multicall3
+contract Multicall_AccessControlEnumerable is
+    AccessControlEnumerable
 {
     struct Call {
         address target;
@@ -29,12 +29,17 @@ contract Multicall_Ownable is
         bool success;
         bytes returnData;
     }
+    
+    // gives "DEFAULT_ADMIN_ROLE" to `msg.sender`
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
 
     /// @notice Backwards-compatible call aggregation with Multicall
     /// @param calls An array of Call structs
     /// @return blockNumber The block number where the calls were executed
     /// @return returnData An array of bytes containing the responses
-    function aggregate(Call[] calldata calls) public payable onlyOwner returns (uint256 blockNumber, bytes[] memory returnData) {
+    function aggregate(Call[] calldata calls) public payable onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 blockNumber, bytes[] memory returnData) {
         blockNumber = block.number;
         uint256 length = calls.length;
         returnData = new bytes[](length);
@@ -53,7 +58,7 @@ contract Multicall_Ownable is
     /// @param requireSuccess If true, require all calls to succeed
     /// @param calls An array of Call structs
     /// @return returnData An array of Result structs
-    function tryAggregate(bool requireSuccess, Call[] calldata calls) public payable onlyOwner returns (Result[] memory returnData) {
+    function tryAggregate(bool requireSuccess, Call[] calldata calls) public payable onlyRole(DEFAULT_ADMIN_ROLE) returns (Result[] memory returnData) {
         uint256 length = calls.length;
         returnData = new Result[](length);
         Call calldata call;
@@ -72,7 +77,7 @@ contract Multicall_Ownable is
     /// @return blockNumber The block number where the calls were executed
     /// @return blockHash The hash of the block where the calls were executed
     /// @return returnData An array of Result structs
-    function tryBlockAndAggregate(bool requireSuccess, Call[] calldata calls) public payable onlyOwner returns (uint256 blockNumber, bytes32 blockHash, Result[] memory returnData) {
+    function tryBlockAndAggregate(bool requireSuccess, Call[] calldata calls) public payable onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 blockNumber, bytes32 blockHash, Result[] memory returnData) {
         blockNumber = block.number;
         blockHash = blockhash(block.number);
         returnData = tryAggregate(requireSuccess, calls);
@@ -84,14 +89,14 @@ contract Multicall_Ownable is
     /// @return blockNumber The block number where the calls were executed
     /// @return blockHash The hash of the block where the calls were executed
     /// @return returnData An array of Result structs
-    function blockAndAggregate(Call[] calldata calls) public payable onlyOwner returns (uint256 blockNumber, bytes32 blockHash, Result[] memory returnData) {
+    function blockAndAggregate(Call[] calldata calls) public payable onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 blockNumber, bytes32 blockHash, Result[] memory returnData) {
         (blockNumber, blockHash, returnData) = tryBlockAndAggregate(true, calls);
     }
 
     /// @notice Aggregate calls, ensuring each returns success if required
     /// @param calls An array of Call3 structs
     /// @return returnData An array of Result structs
-    function aggregate3(Call3[] calldata calls) public payable onlyOwner returns (Result[] memory returnData) {
+    function aggregate3(Call3[] calldata calls) public payable onlyRole(DEFAULT_ADMIN_ROLE) returns (Result[] memory returnData) {
         uint256 length = calls.length;
         returnData = new Result[](length);
         Call3 calldata calli;
@@ -122,7 +127,7 @@ contract Multicall_Ownable is
     /// @notice Reverts if msg.value is less than the sum of the call values
     /// @param calls An array of Call3Value structs
     /// @return returnData An array of Result structs
-    function aggregate3Value(Call3Value[] calldata calls) public payable onlyOwner returns (Result[] memory returnData) {
+    function aggregate3Value(Call3Value[] calldata calls) public payable onlyRole(DEFAULT_ADMIN_ROLE) returns (Result[] memory returnData) {
         uint256 valAccumulator;
         uint256 length = calls.length;
         returnData = new Result[](length);
