@@ -32,6 +32,10 @@ abstract contract BridgelessOrderSignatures is
     bytes32 public constant ORDER_TYPEHASH_Base = keccak256(
         "BridgelessOrder_Base(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline)");
 
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple_OTC` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH_Simple_OTC = keccak256(
+        "BridgelessOrder_Simple_OTC(BridgelessOrder_Base orderBase,address executor)");
+
     /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Base` order struct used by the contract
     bytes32 public constant ORDER_TYPEHASH_WithNonce = keccak256(
         "BridgelessOrder_WithNonce(BridgelessOrder_Base orderBase,uint256 nonce)");
@@ -80,6 +84,22 @@ abstract contract BridgelessOrderSignatures is
     }
 
     /**
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Simple_OTC`
+     * @param order A `BridgelessOrder_Simple_OTC`-type order
+     */
+    function calculateBridgelessOrderHash_Simple_OTC(BridgelessOrder_Simple_OTC calldata order) public pure returns (bytes32) {
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH_Simple_OTC,
+                    calculateBridgelessOrderHash_Base(order.orderBase),
+                    order.executor
+                )
+            )
+        );
+    }
+
+    /**
      * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_WithNonce`
      * @param order A `BridgelessOrder_WithNonce`-type order
      */
@@ -106,6 +126,20 @@ abstract contract BridgelessOrderSignatures is
                 signature.s
             ),
             "Bridgeless._checkOrderSignature_Simple: signer != recoveredAddress"
+        );
+    }
+
+    function _checkOrderSignature_Simple_OTC(address signer, BridgelessOrder_Simple_OTC calldata order, Signature calldata signature) internal pure {
+        // verify the order signature
+        require(
+            signer == ECDSA.recover(
+                // calculate the orderHash
+                calculateBridgelessOrderHash_Simple_OTC(order),
+                signature.v,
+                signature.r,
+                signature.s
+            ),
+            "Bridgeless._checkOrderSignature_WithNonce: signer != recoveredAddress"
         );
     }
 
