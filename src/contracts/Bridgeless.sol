@@ -164,6 +164,45 @@ contract Bridgeless is
     }
 
     /**
+     * @notice Fulfills a single `BridgelessOrder_WithNonce_OTC`, swapping `order.orderBase.amountIn` of the ERC20 token `order.orderBase.tokenIn` for
+     *          *at least* `order.orderBase.amountOutMin` of `order.orderBase.TokenOut`.
+     * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `tokenOwner` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(tokenOwner, order, extraCalldata)`.
+     * @param tokenOwner Address of the user whose order is being fulfilled.
+     * @param order A valid `BridgelessOrder_WithNonce_OTC` created by `tokenOwner`, specifying their desired order parameters.
+     * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
+     *        by checking against `calculateBridgelessOrderHash_WithNonce(order)`
+     * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**.
+     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     */
+    function fulfillOrder_WithNonce_OTC(
+        IBridgelessCallee swapper,
+        address tokenOwner,
+        BridgelessOrder_WithNonce_OTC calldata order,
+        Signature calldata signature,
+        bytes calldata extraCalldata
+    )   
+        external virtual
+        // @dev Modifier to verify that order is still valid
+        checkOrderDeadline(order.orderBase.deadline)
+        // @dev Modifier to verify correct order execution
+        checkOrderFulfillment(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
+        nonReentrant
+    {
+        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid
+        _checkOrderSignature_WithNonce_OTC(tokenOwner, order, signature);
+        _fulfillOrder_Base(
+            swapper,
+            tokenOwner,
+            order.orderBase,
+            extraCalldata
+        );
+    }
+
+    /**
      * @notice Fulfills any arbitrary number of `BridgelessOrder_Simple`s, swapping `order.orderBase.amountIn`
      *         of the ERC20 token `orders[i].orderBase.tokenIn` for *at least* `orders[i].orderBase.amountOutMin` of `orders[i].orderBase.TokenOut`.
      * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!

@@ -106,6 +106,10 @@ contract Tests is
         _testGaslessSwap_WithNonce(true);
         // swap ERC20 to ERC20
         _testGaslessSwap_WithNonce(false);
+        // swap ERC20 to native
+        _testGaslessSwap_WithNonce_OTC(true);
+        // swap ERC20 to ERC20
+        _testGaslessSwap_WithNonce_OTC(false);
     }
 
     function testFulfillMultipleOrdersMainnet(uint8 numberUsers) public {
@@ -226,6 +230,47 @@ contract Tests is
         callsForMulticall[1].target = address(bridgeless);
         bytes memory emptyBytes;
         callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce(user, order, orderSignature, emptyBytes);
+
+        // actually make the gasless swap
+        cheats.startPrank(submitter);
+        multicall.aggregate(callsForMulticall);
+        cheats.stopPrank();
+    }
+
+    function _testGaslessSwap_WithNonce_OTC(bool swapForNative) internal {
+        _setUpSwapParameters(swapForNative);
+        _deployContracts();
+
+        // set up the order
+        BridgelessOrder_WithNonce_OTC memory order;
+        order.orderBase = _makeOrder_Base();
+        order.nonce = _nonce;
+        order.executor = submitter;
+
+        // send tokens to the user from existing whale address, purely for testing
+        cheats.startPrank(addressToSendTokenFrom);
+        IERC20(order.orderBase.tokenIn).transfer(user, _amountIn);
+        cheats.stopPrank();
+
+        // set up calls for gasless swap
+        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
+
+        // get the permit hash
+        bytes32 permitHash = _getPermitHash(user, order.orderBase);
+        // get the permit signature
+        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
+        // set up the `token.permit` call
+        callsForMulticall[0].target = _tokenToSwap;
+        callsForMulticall[0].callData = _formatPermitCall(user, order.orderBase, permitSignature);
+
+        // get the order hash
+        orderHash = bridgeless.calculateBridgelessOrderHash_WithNonce_OTC(order);
+        // get the order signature
+        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
+        // set up the `Bridgeless.fulfillOrder_WithNonce_OTC` call
+        callsForMulticall[1].target = address(bridgeless);
+        bytes memory emptyBytes;
+        callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce_OTC(user, order, orderSignature, emptyBytes);
 
         // actually make the gasless swap
         cheats.startPrank(submitter);
@@ -583,6 +628,34 @@ contract Tests is
         // )
         callData = abi.encodeWithSelector(
             Bridgeless.fulfillOrder_WithNonce.selector,
+            // assumes `swapper` is `bridgelessSwapperUniswap`
+            bridgelessSwapperUniswap,
+            user,
+            order,
+            orderSignature,
+            extraCalldata
+        );
+    }
+
+    // set up a `Bridgeless.fulfillOrder_WithNonce_OTC` call
+    // currently use an `emptyBytes` arg for `extraCalldata`
+    function _formatFulfillOrderCall_WithNonce_OTC(
+        address user,
+        BridgelessOrder_WithNonce_OTC memory order,
+        Signature memory orderSignature,
+        bytes memory extraCalldata
+    )
+        internal view returns (bytes memory callData)
+    {
+        // function fulfillOrder(
+        //     IBridgelessCallee swapper,
+        //     address tokenOwner,
+        //     BridgelessOrder_WithNonce_OTC calldata order,
+        //     Signature calldata signature,
+        //     bytes calldata extraCalldata
+        // )
+        callData = abi.encodeWithSelector(
+            Bridgeless.fulfillOrder_WithNonce_OTC.selector,
             // assumes `swapper` is `bridgelessSwapperUniswap`
             bridgelessSwapperUniswap,
             user,

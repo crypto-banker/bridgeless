@@ -43,9 +43,13 @@ abstract contract BridgelessOrderSignatures is
     bytes32 public constant ORDER_TYPEHASH_Simple_OTC = keccak256(
         "BridgelessOrder_Simple_OTC(BridgelessOrder_Base orderBase,address executor)");
 
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Base` order struct used by the contract
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_WithNonce` order struct used by the contract
     bytes32 public constant ORDER_TYPEHASH_WithNonce = keccak256(
         "BridgelessOrder_WithNonce(BridgelessOrder_Base orderBase,uint256 nonce)");
+
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_WithNonce_OTC` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH_WithNonce_OTC = keccak256(
+        "ORDER_TYPEHASH_WithNonce_OTC(BridgelessOrder_Base orderBase,uint256 nonce,address executor)");
 
     /// @notice EIP-712 Domain separator
     bytes32 public immutable DOMAIN_SEPARATOR;
@@ -129,6 +133,23 @@ abstract contract BridgelessOrderSignatures is
         );
     }
 
+    /**
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_WithNonce_OTC`
+     * @param order A `BridgelessOrder_WithNonce_OTC`-type order
+     */
+    function calculateBridgelessOrderHash_WithNonce_OTC(BridgelessOrder_WithNonce_OTC calldata order) public pure returns (bytes32) {
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH_WithNonce_OTC,
+                    calculateBridgelessOrderHash_Base(order.orderBase),
+                    order.nonce,
+                    order.executor
+                )
+            )
+        );
+    }
+
     function _checkOrderSignature_Simple(address signer, BridgelessOrder_Simple calldata order, Signature calldata signature) internal pure {
         // verify the order signature
         require(
@@ -153,7 +174,7 @@ abstract contract BridgelessOrderSignatures is
                 signature.r,
                 signature.s
             ),
-            "Bridgeless._checkOrderSignature_WithNonce: signer != recoveredAddress"
+            "Bridgeless._checkOrderSignature_Simple_OTC: signer != recoveredAddress"
         );
     }
 
@@ -174,6 +195,26 @@ abstract contract BridgelessOrderSignatures is
                 signature.s
             ),
             "Bridgeless._checkOrderSignature_WithNonce: signer != recoveredAddress"
+        );
+    }
+
+    function _checkOrderSignature_WithNonce_OTC(address signer, BridgelessOrder_WithNonce_OTC calldata order, Signature calldata signature) internal {
+        // check nonce validity
+        if (nonceIsSpent[signer][order.nonce]) {
+            revert("Bridgeless._checkOrderSignature_WithNonce_OTC: nonce is already spent");
+        }
+        // mark nonce as spent
+        nonceIsSpent[signer][order.nonce] = true;
+        // verify the order signature
+        require(
+            signer == ECDSA.recover(
+                // calculate the orderHash
+                calculateBridgelessOrderHash_WithNonce_OTC(order),
+                signature.v,
+                signature.r,
+                signature.s
+            ),
+            "Bridgeless._checkOrderSignature_WithNonce_OTC: signer != recoveredAddress"
         );
     }
 
