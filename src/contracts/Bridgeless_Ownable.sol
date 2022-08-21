@@ -15,8 +15,10 @@ contract Bridgeless_Ownable is
         Signature calldata signature,
         bytes calldata extraCalldata
     )
+        public override 
+        onlyOwner
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
-        public override nonReentrant onlyOwner
+        nonReentrant
     {
         super.fulfillOrder_Simple(
             swapper,
@@ -34,8 +36,10 @@ contract Bridgeless_Ownable is
         Signature[] calldata signatures,
         bytes calldata extraCalldata
     )
+        public override
+        onlyOwner
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
-        public override nonReentrant onlyOwner
+        nonReentrant
     {
         super.fulfillOrders_Simple(
             swapper,
