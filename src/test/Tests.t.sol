@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/interfaces/draft-IERC2612.sol";
 import "../contracts/Bridgeless.sol";
-import "../contracts/BridgelessStructs.sol";
+import "../contracts/libraries/BridgelessOrderLibrary.sol";
 import "../contracts/mocks/BridgelessSwapperUniswap.sol";
 import "./utils/TokenAddresses.sol";
 import "./utils/UsersAndSubmitter.sol";
@@ -12,7 +12,7 @@ import "multicall/Multicall3.sol";
 contract Tests is
     TokenAddresses,
     UsersAndSubmitter,
-    BridgelessStructs
+    BridgelessOrderLibrary
 {
     // deployed on a huge number of chains at the same address -- see here https://github.com/mds1/multicall
     Multicall3 internal constant multicall = Multicall3(0xcA11bde05977b3631167028862bE2a173976CA11);
