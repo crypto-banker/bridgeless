@@ -75,8 +75,8 @@ contract Bridgeless is
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid
-        _checkOrderSignature_Simple(tokenOwner, order, signature);
+        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_Simple(tokenOwner, order, signature);
         _fulfillOrder_Base(
             swapper,
             tokenOwner,
@@ -114,8 +114,8 @@ contract Bridgeless is
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid
-        _checkOrderSignature_Simple_OTC(tokenOwner, order, signature);
+        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_Simple_OTC(tokenOwner, order, signature);
         _fulfillOrder_Base(
             swapper,
             tokenOwner,
@@ -153,8 +153,8 @@ contract Bridgeless is
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid
-        _checkOrderSignature_WithNonce(tokenOwner, order, signature);
+        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_WithNonce(tokenOwner, order, signature);
         _fulfillOrder_Base(
             swapper,
             tokenOwner,
@@ -192,8 +192,8 @@ contract Bridgeless is
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid
-        _checkOrderSignature_WithNonce_OTC(tokenOwner, order, signature);
+        // @dev Verify that `tokenOwner` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_WithNonce_OTC(tokenOwner, order, signature);
         _fulfillOrder_Base(
             swapper,
             tokenOwner,
@@ -256,7 +256,7 @@ contract Bridgeless is
         // @dev Verify that the `tokenOwners` did indeed sign the `orders`.
         {
             for (uint256 i; i < ownersLength;) {
-                _checkOrderSignature_Simple(tokenOwners[i], orders[i], signatures[i]);
+                _processOrderSignature_Simple(tokenOwners[i], orders[i], signatures[i]);
                 unchecked {
                     ++i;
                 }

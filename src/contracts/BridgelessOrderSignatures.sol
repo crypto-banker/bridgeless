@@ -57,6 +57,8 @@ abstract contract BridgelessOrderSignatures is
     // signer => nonce => whether or not the nonce has been spent already
     mapping(address => mapping(uint256 => bool)) public nonceIsSpent;
 
+    mapping(bytes32 => bool) public orderHashIsSpent;
+
     // set immutable variables
     constructor()
     {
@@ -150,72 +152,49 @@ abstract contract BridgelessOrderSignatures is
         );
     }
 
-    function _checkOrderSignature_Simple(address signer, BridgelessOrder_Simple calldata order, Signature calldata signature) internal pure {
+    function _processOrderSignature_Simple(address signer, BridgelessOrder_Simple calldata order, Signature calldata signature) internal {
+        // calculate the orderHash
+        bytes32 orderHash = calculateBridgelessOrderHash_Simple(order);
+        _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        require(
-            signer == ECDSA.recover(
-                // calculate the orderHash
-                calculateBridgelessOrderHash_Simple(order),
-                signature.v,
-                signature.r,
-                signature.s
-            ),
-            "Bridgeless._checkOrderSignature_Simple: signer != recoveredAddress"
-        );
+        _checkOrderSignature(signer, orderHash, signature);
     }
 
-    function _checkOrderSignature_Simple_OTC(address signer, BridgelessOrder_Simple_OTC calldata order, Signature calldata signature) internal pure {
+    function _processOrderSignature_Simple_OTC(address signer, BridgelessOrder_Simple_OTC calldata order, Signature calldata signature) internal {
+        // calculate the orderHash
+        bytes32 orderHash = calculateBridgelessOrderHash_Simple_OTC(order);
+        _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        require(
-            signer == ECDSA.recover(
-                // calculate the orderHash
-                calculateBridgelessOrderHash_Simple_OTC(order),
-                signature.v,
-                signature.r,
-                signature.s
-            ),
-            "Bridgeless._checkOrderSignature_Simple_OTC: signer != recoveredAddress"
-        );
+        _checkOrderSignature(signer, orderHash, signature);
     }
 
-    function _checkOrderSignature_WithNonce(address signer, BridgelessOrder_WithNonce calldata order, Signature calldata signature) internal {
+    function _processOrderSignature_WithNonce(address signer, BridgelessOrder_WithNonce calldata order, Signature calldata signature) internal {
         // check nonce validity
         if (nonceIsSpent[signer][order.nonce]) {
-            revert("Bridgeless._checkOrderSignature_WithNonce: nonce is already spent");
+            revert("Bridgeless._processOrderSignature_WithNonce: nonce is already spent");
         }
         // mark nonce as spent
         nonceIsSpent[signer][order.nonce] = true;
+        // calculate the orderHash
+        bytes32 orderHash = calculateBridgelessOrderHash_WithNonce(order);
+        _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        require(
-            signer == ECDSA.recover(
-                // calculate the orderHash
-                calculateBridgelessOrderHash_WithNonce(order),
-                signature.v,
-                signature.r,
-                signature.s
-            ),
-            "Bridgeless._checkOrderSignature_WithNonce: signer != recoveredAddress"
-        );
+        _checkOrderSignature(signer, orderHash, signature);
     }
 
-    function _checkOrderSignature_WithNonce_OTC(address signer, BridgelessOrder_WithNonce_OTC calldata order, Signature calldata signature) internal {
+    function _processOrderSignature_WithNonce_OTC(address signer, BridgelessOrder_WithNonce_OTC calldata order, Signature calldata signature) internal {
         // check nonce validity
         if (nonceIsSpent[signer][order.nonce]) {
-            revert("Bridgeless._checkOrderSignature_WithNonce_OTC: nonce is already spent");
+            revert("Bridgeless._processOrderSignature_WithNonce_OTC: nonce is already spent");
         }
         // mark nonce as spent
         nonceIsSpent[signer][order.nonce] = true;
+        // calculate the orderHash
+        bytes32 orderHash = calculateBridgelessOrderHash_WithNonce_OTC(order);
+        _markOrderHashAsSpent(orderHash);
         // verify the order signature
-        require(
-            signer == ECDSA.recover(
-                // calculate the orderHash
-                calculateBridgelessOrderHash_WithNonce_OTC(order),
-                signature.v,
-                signature.r,
-                signature.s
-            ),
-            "Bridgeless._checkOrderSignature_WithNonce_OTC: signer != recoveredAddress"
-        );
+        _checkOrderSignature(signer, orderHash, signature);
+
     }
 
     function _checkOrderDeadline(uint256 deadline) internal view {
@@ -223,5 +202,27 @@ abstract contract BridgelessOrderSignatures is
             block.timestamp <= deadline,
             "Bridgeless._checkOrderDeadline: block.timestamp > deadline"
         );
+    }
+
+    function _checkOrderSignature(address signer, bytes32 orderHash, Signature calldata signature) internal pure {
+        require(
+            signer == ECDSA.recover(
+                orderHash,
+                signature.v,
+                signature.r,
+                signature.s
+            ),
+            "Bridgeless._checkOrderSignature: signer != recoveredAddress"
+        );
+    }
+
+    function _markOrderHashAsSpent(bytes32 orderHash) internal {
+        // verify that the orderHash has not already been spent
+        require(
+            !orderHashIsSpent[orderHash],
+            "Bridgeless._markOrderHashAsSpent: orderHash has already been spent"
+        );
+        // mark orderHash as spent
+        orderHashIsSpent[orderHash] = true;
     }
 }
