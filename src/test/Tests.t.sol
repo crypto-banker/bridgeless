@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/interfaces/draft-IERC2612.sol";
 import "../contracts/Bridgeless.sol";
-import "../contracts/BridgelessStructs.sol";
+import "../contracts/libraries/BridgelessOrderLibrary.sol";
 import "../contracts/mocks/BridgelessSwapperUniswap.sol";
 import "./utils/TokenAddresses.sol";
 import "./utils/UsersAndSubmitter.sol";
@@ -12,7 +12,7 @@ import "multicall/Multicall3.sol";
 contract Tests is
     TokenAddresses,
     UsersAndSubmitter,
-    BridgelessStructs
+    BridgelessOrderLibrary
 {
     // deployed on a huge number of chains at the same address -- see here https://github.com/mds1/multicall
     Multicall3 internal constant multicall = Multicall3(0xcA11bde05977b3631167028862bE2a173976CA11);
@@ -29,17 +29,21 @@ contract Tests is
     // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
-
     // storage variables declared to deal with 'stack too deep' errors
-    address tokenToSwap;
+    address _tokenToSwap;
     uint256 _amountIn;
     uint256 _amountOutMin;
+    address _tokenIn;
+    address _tokenOut;
+    uint256 _deadline;
     // address that already has permit token balance, for forked testing
     address addressToSendTokenFrom;
     bytes32 orderHash;
     uint8 v;
     bytes32 r;
     bytes32 s;
+
+    uint256 _nonce = 1559;
 
     // this is a max number just for the existing tests.
     // nothing in the contracts actually enforces a max number, this is purely to decrease the computational cost of running all the tests.
@@ -53,75 +57,59 @@ contract Tests is
         // bridgeless = new Bridgeless();
     }
 
-    function testGaslessSwapToNativeMainnet() public {
+    function testGaslessSwapMainnet() public {
         uint256 forkId = cheats.createFork("mainnet");
         cheats.selectFork(forkId);
-        _testGaslessSwap(true);
+        _runTestSuite();
     }
 
-    function testGaslessSwapToNativePolygon() public {
+    function testGaslessSwapPolygon() public {
         uint256 forkId = cheats.createFork("polygon");
         cheats.selectFork(forkId);
-        _testGaslessSwap(true);
+        _runTestSuite();
     }
 
-    function testGaslessSwapToNativeArbitrum() public {
+    function testGaslessSwapArbitrum() public {
         uint256 forkId = cheats.createFork("arbitrum");
         cheats.selectFork(forkId);
-        _testGaslessSwap(true);
+        _runTestSuite();
     }
 
-    function testGaslessSwapToNativeAvalanche() public {
+    function testGaslessSwapAvalanche() public {
         uint256 forkId = cheats.createFork("avalanche");
         cheats.selectFork(forkId);
-        _testGaslessSwap(true);
+        _runTestSuite();
     }
 
-    function testGaslessSwapToNativeFantom() public {
+    function testGaslessSwapFantom() public {
         uint256 forkId = cheats.createFork("fantom");
         cheats.selectFork(forkId);
-        _testGaslessSwap(true);
+        _runTestSuite();
     }
 
-    function testGaslessSwapToNativeBSC() public {
+    function testGaslessSwapBSC() public {
         uint256 forkId = cheats.createFork("bsc");
         cheats.selectFork(forkId);
-        _testGaslessSwap(true);
-    }
-    function testGaslessSwapToNonNativeMainnet() public {
-        uint256 forkId = cheats.createFork("mainnet");
-        cheats.selectFork(forkId);
-        _testGaslessSwap(false);
+        _runTestSuite();
     }
 
-    function testGaslessSwapToNonNativePolygon() public {
-        uint256 forkId = cheats.createFork("polygon");
-        cheats.selectFork(forkId);
-        _testGaslessSwap(false);
-    }
-
-    function testGaslessSwapToNonNativeArbitrum() public {
-        uint256 forkId = cheats.createFork("arbitrum");
-        cheats.selectFork(forkId);
-        _testGaslessSwap(false);
-    }
-
-    function testGaslessSwapToNonNativeAvalanche() public {
-        uint256 forkId = cheats.createFork("avalanche");
-        cheats.selectFork(forkId);
-        _testGaslessSwap(false);
-    }
-
-    function testGaslessSwapToNonNativeFantom() public {
-        uint256 forkId = cheats.createFork("fantom");
-        cheats.selectFork(forkId);
-        _testGaslessSwap(false);
-    }
-
-    function testGaslessSwapToNonNativeBSC() public {
-        uint256 forkId = cheats.createFork("bsc");
-        cheats.selectFork(forkId);
-        _testGaslessSwap(false);
+    function _runTestSuite() internal {
+        // swap ERC20 to native
+        _testGaslessSwap_Simple(true);
+        // swap ERC20 to ERC20
+        _testGaslessSwap_Simple(false);
+        // swap ERC20 to native
+        _testGaslessSwap_Simple_OTC(true);
+        // swap ERC20 to ERC20
+        _testGaslessSwap_Simple_OTC(false);
+        // swap ERC20 to native
+        _testGaslessSwap_WithNonce(true);
+        // swap ERC20 to ERC20
+        _testGaslessSwap_WithNonce(false);
+        // swap ERC20 to native
+        _testGaslessSwap_WithNonce_OTC(true);
+        // swap ERC20 to ERC20
+        _testGaslessSwap_WithNonce_OTC(false);
     }
 
     function testFulfillMultipleOrdersMainnet(uint8 numberUsers) public {
@@ -130,26 +118,248 @@ contract Tests is
         _testAggregatedGaslessSwap(numberUsers);
     }
 
-    function _testGaslessSwap(bool swapForNative) internal {
-        // deploy the Bridgeless contract
-        bridgeless = new Bridgeless();
+    function _testGaslessSwap_Simple(bool swapForNative) internal {
+        _setUpSwapParameters(swapForNative);
+        _deployContracts();
+
+        // set up the order
+        BridgelessOrder_Simple memory order;
+        order.orderBase = _makeOrder_Base(user);
+
+        // send tokens to the user from existing whale address, purely for testing
+        cheats.startPrank(addressToSendTokenFrom);
+        IERC20(order.orderBase.tokenIn).transfer(user, _amountIn);
+        cheats.stopPrank();
+
+        // set up calls for gasless swap
+        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
+
+        // get the permit hash
+        bytes32 permitHash = _getPermitHash(user, order.orderBase);
+        // get the permit signature
+        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
+        // set up the `token.permit` call
+        callsForMulticall[0].target = _tokenToSwap;
+        callsForMulticall[0].callData = _formatPermitCall(user, order.orderBase, permitSignature);
+
+        // get the order hash
+        orderHash = bridgeless.calculateBridgelessOrderHash_Simple(order);
+        // get the order signature
+        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
+        // set up the `Bridgeless.fulfillOrder_Simple` call
+        callsForMulticall[1].target = address(bridgeless);
+        bytes memory emptyBytes;
+        callsForMulticall[1].callData = _formatFulfillOrderCall_Simple(order, orderSignature, emptyBytes);
+
+        // actually make the gasless swap
+        cheats.startPrank(submitter);
+        multicall.aggregate(callsForMulticall);
+        cheats.stopPrank();
+    }
+
+    function _testGaslessSwap_Simple_OTC(bool swapForNative) internal {
+        _setUpSwapParameters(swapForNative);
+        _deployContracts();
+
+        // set up the order
+        BridgelessOrder_Simple_OTC memory order;
+        order.orderBase = _makeOrder_Base(user);
+        order.executor = submitter;
+
+        // send tokens to the user from existing whale address, purely for testing
+        cheats.startPrank(addressToSendTokenFrom);
+        IERC20(order.orderBase.tokenIn).transfer(user, _amountIn);
+        cheats.stopPrank();
+
+        // set up calls for gasless swap
+        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
+
+        // get the permit hash
+        bytes32 permitHash = _getPermitHash(user, order.orderBase);
+        // get the permit signature
+        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
+        // set up the `token.permit` call
+        callsForMulticall[0].target = _tokenToSwap;
+        callsForMulticall[0].callData = _formatPermitCall(user, order.orderBase, permitSignature);
+
+        // get the order hash
+        orderHash = bridgeless.calculateBridgelessOrderHash_Simple_OTC(order);
+        // get the order signature
+        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
+        // set up the `Bridgeless.fulfillOrder_Simple_OTC` call
+        callsForMulticall[1].target = address(bridgeless);
+        bytes memory emptyBytes;
+        callsForMulticall[1].callData = _formatFulfillOrderCall_Simple_OTC(order, orderSignature, emptyBytes);
+
+        // actually make the gasless swap
+        cheats.startPrank(submitter);
+        multicall.aggregate(callsForMulticall);
+        cheats.stopPrank();
+    }
+
+    function _testGaslessSwap_WithNonce(bool swapForNative) internal {
+        _setUpSwapParameters(swapForNative);
+        _deployContracts();
+
+        // set up the order
+        BridgelessOrder_WithNonce memory order;
+        order.orderBase = _makeOrder_Base(user);
+        order.nonce = _nonce;
+
+        // send tokens to the user from existing whale address, purely for testing
+        cheats.startPrank(addressToSendTokenFrom);
+        IERC20(order.orderBase.tokenIn).transfer(user, _amountIn);
+        cheats.stopPrank();
+
+        // set up calls for gasless swap
+        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
+
+        // get the permit hash
+        bytes32 permitHash = _getPermitHash(user, order.orderBase);
+        // get the permit signature
+        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
+        // set up the `token.permit` call
+        callsForMulticall[0].target = _tokenToSwap;
+        callsForMulticall[0].callData = _formatPermitCall(user, order.orderBase, permitSignature);
+
+        // get the order hash
+        orderHash = bridgeless.calculateBridgelessOrderHash_WithNonce(order);
+        // get the order signature
+        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
+        // set up the `Bridgeless.fulfillOrder_WithNonce` call
+        callsForMulticall[1].target = address(bridgeless);
+        bytes memory emptyBytes;
+        callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce(order, orderSignature, emptyBytes);
+
+        // actually make the gasless swap
+        cheats.startPrank(submitter);
+        multicall.aggregate(callsForMulticall);
+        cheats.stopPrank();
+    }
+
+    function _testGaslessSwap_WithNonce_OTC(bool swapForNative) internal {
+        _setUpSwapParameters(swapForNative);
+        _deployContracts();
+
+        // set up the order
+        BridgelessOrder_WithNonce_OTC memory order;
+        order.orderBase = _makeOrder_Base(user);
+        order.nonce = _nonce;
+        order.executor = submitter;
+
+        // send tokens to the user from existing whale address, purely for testing
+        cheats.startPrank(addressToSendTokenFrom);
+        IERC20(order.orderBase.tokenIn).transfer(user, _amountIn);
+        cheats.stopPrank();
+
+        // set up calls for gasless swap
+        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
+
+        // get the permit hash
+        bytes32 permitHash = _getPermitHash(user, order.orderBase);
+        // get the permit signature
+        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
+        // set up the `token.permit` call
+        callsForMulticall[0].target = _tokenToSwap;
+        callsForMulticall[0].callData = _formatPermitCall(user, order.orderBase, permitSignature);
+
+        // get the order hash
+        orderHash = bridgeless.calculateBridgelessOrderHash_WithNonce_OTC(order);
+        // get the order signature
+        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
+        // set up the `Bridgeless.fulfillOrder_WithNonce_OTC` call
+        callsForMulticall[1].target = address(bridgeless);
+        bytes memory emptyBytes;
+        callsForMulticall[1].callData = _formatFulfillOrderCall_WithNonce_OTC(order, orderSignature, emptyBytes);
+
+        // actually make the gasless swap
+        cheats.startPrank(submitter);
+        multicall.aggregate(callsForMulticall);
+        cheats.stopPrank();
+    }
+
+    function _testAggregatedGaslessSwap(uint8 numberUsers) internal {
+        // sanity check on fuzzed input
+        cheats.assume(numberUsers <= MAX_NUMBER_USERS);
+
+        _setUpSwapParameters(false);
+        _deployContracts();
 
         // initialize memory structs
-        BridgelessOrder memory order;
-        Signature memory orderSignature;
+        BridgelessOrder_Simple[] memory orders = new BridgelessOrder_Simple[](numberUsers);
+        Signature[] memory orderSignatures = new Signature[](numberUsers);
+        Signature[] memory permitSignatures = new Signature[](numberUsers);
+        // set up calls for approvals + swap at end
+        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](numberUsers + 1);
+
+        // set up the orders
+        for (uint256 i; i < numberUsers; ++i) {
+            // fill in order parameters
+            orders[i].orderBase.signer = users[i];
+            orders[i].orderBase.tokenIn = _tokenToSwap;
+            orders[i].orderBase.amountIn = _amountIn;
+            orders[i].orderBase.tokenOut = _tokenOut;
+            orders[i].orderBase.amountOutMin = _amountOutMin;
+            orders[i].orderBase.deadline = _deadline;
+
+            // get the permit hash
+            bytes32 permitHash = _getPermitHash(users[i], orders[i].orderBase);
+            // get the permit signature
+            permitSignatures[i] = _getSignature(user_priv_keys[i], permitHash);
+            // set up the `token.permit` calls
+            callsForMulticall[i].target = _tokenToSwap;
+            callsForMulticall[i].callData = _formatPermitCall(users[i], orders[i].orderBase, permitSignatures[i]);
+
+            // get the order hash
+            orderHash = bridgeless.calculateBridgelessOrderHash_Simple(orders[i]);
+            // get order signature
+            orderSignatures[i] = _getSignature(user_priv_keys[i], orderHash);
+
+            // send tokens to the user from existing whale address, purely for testing
+            cheats.startPrank(addressToSendTokenFrom);
+            IERC20(orders[i].orderBase.tokenIn).transfer(users[i], _amountIn);
+            cheats.stopPrank();
+
+        }
+
+        // set up the `Bridgeless.fulfillOrders_Simple` call
+        {
+            callsForMulticall[numberUsers].target = address(bridgeless);
+            // function fulfillOrders(
+            //     IBridgelessCallee swapper,
+            //     BridgelessOrder_Simple[] calldata orders,
+            //     Signature[] calldata signatures,
+            //     bytes calldata extraCalldata
+            // )
+            bytes memory emptyBytes;
+            callsForMulticall[numberUsers].callData = abi.encodeWithSelector(
+                Bridgeless.fulfillOrders_Simple.selector,
+                bridgelessSwapperUniswap,
+                orders,
+                orderSignatures,
+                emptyBytes
+            );
+        }
+
+        // actually make the gasless swaps
+        cheats.startPrank(submitter);
+        multicall.aggregate(callsForMulticall);
+        cheats.stopPrank();
+    }
+
+    function _setUpSwapParameters(bool swapForNative) internal {
+        // swap for at least 1 gwei of the `tokenOut`
+        _amountOutMin = 1e9;
+        // infinite deadline -- generally not a great idea in practice
+        _deadline = type(uint256).max;
+
+        // swap for native token
+        if (swapForNative) {
+            _tokenOut = address(0);
+        }
 
         // check chainId
         uint256 chainId = block.chainid;
-        // emit the chainId for logging purposes
-        emit log_named_uint("chainId", chainId);
-
-        // swap for at least 1 gwei of the `tokenOut`
-        _amountOutMin = 1e9;
-
-        if (swapForNative) {
-            // swap for native token
-            order.tokenOut = address(0);
-        }
 
         // for testing on forked ETH mainnet
         if (chainId == 1) {
@@ -161,14 +371,14 @@ contract Tests is
             FACTORY = IUniswapV2Factory(ROUTER.factory());
 
             // ETH_USDC
-            tokenToSwap = ETH_USDC;
+            _tokenToSwap = ETH_USDC;
 
             // AAVE
             addressToSendTokenFrom = 0xBcca60bB61934080951369a648Fb03DF4F96263C;
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = ETH_DAI;
+                _tokenOut = ETH_DAI;
             }
         }
 
@@ -182,14 +392,14 @@ contract Tests is
             FACTORY = IUniswapV2Factory(ROUTER.factory());
 
             // POLYGON_USDC
-            tokenToSwap = POLYGON_USDC;
+            _tokenToSwap = POLYGON_USDC;
 
             // AAVE address
             addressToSendTokenFrom = 0x625E7708f30cA75bfd92586e17077590C60eb4cD;
  
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = POLYGON_DAI;
+                _tokenOut = POLYGON_DAI;
             }
        }
 
@@ -203,14 +413,14 @@ contract Tests is
             FACTORY = IUniswapV2Factory(ROUTER.factory());
 
             // ARBI_USDC
-            tokenToSwap = ARBI_USDC;
+            _tokenToSwap = ARBI_USDC;
 
             // some bridge / exchange ? found through arbiscan
             addressToSendTokenFrom = 0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b;
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = ARBI_DAI;
+                _tokenOut = ARBI_DAI;
             }
         }
 
@@ -224,14 +434,14 @@ contract Tests is
             FACTORY = IUniswapV2Factory(ROUTER.factory());
 
             // AVAX_USDC
-            tokenToSwap = AVAX_USDC;
+            _tokenToSwap = AVAX_USDC;
 
             // AAVE
             addressToSendTokenFrom = 0x625E7708f30cA75bfd92586e17077590C60eb4cD;
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = AVAX_DAI;
+                _tokenOut = AVAX_DAI;
             }
         }
 
@@ -245,14 +455,14 @@ contract Tests is
             FACTORY = IUniswapV2Factory(ROUTER.factory());
 
             // BOO
-            tokenToSwap = BOO;
+            _tokenToSwap = BOO;
 
             // xBOO token address
             addressToSendTokenFrom = 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598;
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = FTM_DAI;
+                _tokenOut = FTM_DAI;
             }
         }
 
@@ -266,14 +476,14 @@ contract Tests is
             FACTORY = IUniswapV2Factory(ROUTER.factory());
 
             // ORT
-            tokenToSwap = ORT;
+            _tokenToSwap = ORT;
 
             // ORT staking contract?
             addressToSendTokenFrom = 0x6f40A3d0c89cFfdC8A1af212A019C220A295E9bB;
 
             // example non-native `tokenOut` for this network (i.e. swap to an ERC20 token)
             if (!swapForNative) {
-                order.tokenOut = BUSD;
+                _tokenOut = BUSD;
             }
         }
 
@@ -281,287 +491,7 @@ contract Tests is
             emit log_named_uint("ERROR: unsupported chainId number", chainId);
             revert("support for chain not yet added to *tests* -- you can still launch on the chain though!");
         }
-
-        // deploy POC IBridgelessCallee contract
-        bridgelessSwapperUniswap = new BridgelessSwapperUniswap(ROUTER);
-
-        // infinite deadline -- generally not a great idea in practice
-        uint256 _deadline = type(uint256).max;
-
-        // set up the order
-        order.tokenIn = tokenToSwap;
-        order.amountIn = _amountIn;
-        order.amountOutMin = _amountOutMin;
-        order.deadline = _deadline;
-
-        // get the order hash
-        orderHash = bridgeless.calculateBridgelessOrderHash(user, order);
-        // get order signature and copy it over to struct
-        (v, r, s) = cheats.sign(user_priv_key, orderHash);
-        orderSignature.v = v;
-        orderSignature.r = r;
-        orderSignature.s = s;
-
-        // get the permit hash
-        bytes32 permitHash;
-        {
-            IERC20Permit permitToken = IERC20Permit(order.tokenIn);
-            uint256 nonce = permitToken.nonces(user);
-            bytes32 domainSeparator = permitToken.DOMAIN_SEPARATOR();
-
-            // calculation from USDC implementation code here -- https://etherscan.io/address/0xa2327a938febf5fec13bacfb16ae10ecbc4cbdcf#code
-            bytes memory data = abi.encode(
-                PERMIT_TYPEHASH,
-                user,
-                address(bridgeless),
-                _amountIn,
-                nonce,
-                _deadline
-            );
-            permitHash = keccak256(
-                abi.encodePacked(
-                    "\x19\x01",
-                    domainSeparator,
-                    keccak256(data)
-                )
-            );
-        }
-
-
-        // get the permit signature
-        (v, r, s) = cheats.sign(user_priv_key, permitHash);
-
-        // send tokens to the user from existing whale address, purely for testing
-        cheats.startPrank(addressToSendTokenFrom);
-        IERC20(order.tokenIn).transfer(user, _amountIn);
-        cheats.stopPrank();
-
-        // set up calls for gasless swap
-        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
-
-        // set up the `token.permit` call
-        {
-        callsForMulticall[0].target = tokenToSwap;
-        // note that this POC uses the `permit` standard defined in EIP2612, but Bridgeless itself is ultimately agnostic to the signed approval format
-        // function permit(
-        //     address owner,
-        //     address spender,
-        //     uint256 value,
-        //     uint256 deadline,
-        //     uint8 v,
-        //     bytes32 r,
-        //     bytes32 s
-        // ) external;
-        callsForMulticall[0].callData = abi.encodeWithSelector(
-            // permit(address,address,uint256,uint256,uint8,bytes32,bytes32) has selector 0xd505accf
-            IERC20Permit.permit.selector,
-            address(user),
-            address(bridgeless),
-            uint256(_amountIn),
-            uint256(_deadline),
-            uint8(v),
-            bytes32(r),
-            bytes32(s)
-        );
-        }
-
-        // set up the `Bridgeless.fulfillOrder` call
-        {
-            callsForMulticall[1].target = address(bridgeless);
-            // function fulfillOrder(
-            //     IBridgelessCallee swapper,
-            //     address tokenOwner,
-            //     BridgelessOrder calldata order,
-            //     Signature calldata signature,
-            //     bytes calldata extraCalldata
-            // )
-            bytes memory emptyBytes;
-            callsForMulticall[1].callData = abi.encodeWithSelector(
-                Bridgeless.fulfillOrder.selector,
-                bridgelessSwapperUniswap,
-                user,
-                order,
-                orderSignature,
-                emptyBytes
-            );
-        }
-
-        // actually make the gasless swap
-        cheats.startPrank(submitter);
-        multicall.aggregate(callsForMulticall);
-        cheats.stopPrank();
-
-        // log address balances
-        uint256 userBalance = _getUserBalance(user, order.tokenOut);
-        emit log_named_uint("userBalance", userBalance);
-        require(userBalance >= _amountOutMin, "order not fulfilled correctly!");
     }
-
-    function _testAggregatedGaslessSwap(uint8 numberUsers) internal {
-        cheats.assume(numberUsers <= MAX_NUMBER_USERS);
-
-        // deploy the Bridgeless contract
-        bridgeless = new Bridgeless();
-
-        // initialize memory structs
-        BridgelessOrder[] memory orders = new BridgelessOrder[](numberUsers);
-        Signature[] memory orderSignatures = new Signature[](numberUsers);
-        Signature[] memory permitSignatures = new Signature[](numberUsers);
-        address[] memory tokenOwners = new address[](numberUsers);
-
-        // check chainId
-        uint256 chainId = block.chainid;
-        // emit the chainId for logging purposes
-        emit log_named_uint("chainId", chainId);
-
-        // swap for at least 1 gwei of the `tokenOut`
-        _amountOutMin = 1e9;
-
-        // for testing on forked ETH mainnet
-        if (chainId == 1) {
-            // swap 1e6 ETH_USDC for at least 1e9 ETH (i.e. one full ETH_USDC for at least one gwei of `tokenOut`)
-            _amountIn = 1e6;
-
-            // uniswap router
-            ROUTER = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-            FACTORY = IUniswapV2Factory(ROUTER.factory());
-
-            // ETH_USDC
-            tokenToSwap = ETH_USDC;
-
-            // AAVE
-            addressToSendTokenFrom = 0xBcca60bB61934080951369a648Fb03DF4F96263C;
-        }
-
-        else {
-            emit log_named_uint("ERROR: unsupported chainId number", chainId);
-            revert("support for chain not yet added to *tests* -- you can still launch on the chain though!");
-        }
-
-          // deploy POC IBridgelessCallee contract
-        bridgelessSwapperUniswap = new BridgelessSwapperUniswap(ROUTER);
-
-        // infinite deadline -- generally not a great idea in practice
-        uint256 _deadline = type(uint256).max;
-
-        // set up calls for gasless swaps
-        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](numberUsers + 1);
-
-        // set up the orders
-        for (uint256 i; i < numberUsers; ++i) {
-            orders[i].tokenIn = tokenToSwap;
-            orders[i].amountIn = _amountIn;
-            orders[i].amountOutMin = _amountOutMin;
-            orders[i].deadline = _deadline;
-
-            // get the order hash
-            orderHash = bridgeless.calculateBridgelessOrderHash(users[i], orders[i]);
-            // get order signature and copy it over to struct
-            (v, r, s) = cheats.sign(user_priv_keys[i], orderHash);
-            orderSignatures[i].v = v;
-            orderSignatures[i].r = r;
-            orderSignatures[i].s = s;
-
-            // get the permit hash
-            bytes32 permitHash;
-            {
-                IERC20Permit permitToken = IERC20Permit(orders[i].tokenIn);
-                uint256 nonce = permitToken.nonces(users[i]);
-                bytes32 domainSeparator = permitToken.DOMAIN_SEPARATOR();
-
-                // calculation from USDC implementation code here -- https://etherscan.io/address/0xa2327a938febf5fec13bacfb16ae10ecbc4cbdcf#code
-                bytes memory data = abi.encode(
-                    PERMIT_TYPEHASH,
-                    users[i],
-                    address(bridgeless),
-                    _amountIn,
-                    nonce,
-                    _deadline
-                );
-                permitHash = keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        domainSeparator,
-                        keccak256(data)
-                    )
-                );
-            }
-
-            // get the permit signature
-            (v, r, s) = cheats.sign(user_priv_keys[i], permitHash);
-            permitSignatures[i].v = v;
-            permitSignatures[i].r = r;
-            permitSignatures[i].s = s;
-
-            // send tokens to the user from existing whale address, purely for testing
-            cheats.startPrank(addressToSendTokenFrom);
-            IERC20(orders[i].tokenIn).transfer(users[i], _amountIn);
-            cheats.stopPrank();
-
-            // set up the `token.permit` calls
-            {
-            callsForMulticall[i].target = tokenToSwap;
-            // note that this POC uses the `permit` standard defined in EIP2612, but Bridgeless itself is ultimately agnostic to the signed approval format
-            // function permit(
-            //     address owner,
-            //     address spender,
-            //     uint256 value,
-            //     uint256 deadline,
-            //     uint8 v,
-            //     bytes32 r,
-            //     bytes32 s
-            // ) external;
-            callsForMulticall[i].callData = abi.encodeWithSelector(
-                // permit(address,address,uint256,uint256,uint8,bytes32,bytes32) has selector 0xd505accf
-                IERC20Permit.permit.selector,
-                address(users[i]),
-                address(bridgeless),
-                uint256(_amountIn),
-                uint256(_deadline),
-                uint8(v),
-                bytes32(r),
-                bytes32(s)
-            );
-            }
-
-            // set up tokenOwners struct
-            tokenOwners[i] = users[i];
-        }
-
-        // set up the `Bridgeless.fulfillOrders` call
-        {
-            callsForMulticall[numberUsers].target = address(bridgeless);
-            // function fulfillOrders(
-            //     IBridgelessCallee swapper,
-            //     address[] calldata tokenOwners,
-            //     BridgelessOrder[] calldata orders,
-            //     Signature[] calldata signatures,
-            //     bytes calldata extraCalldata
-            // )
-            bytes memory emptyBytes;
-            callsForMulticall[numberUsers].callData = abi.encodeWithSelector(
-                Bridgeless.fulfillOrders.selector,
-                bridgelessSwapperUniswap,
-                tokenOwners,
-                orders,
-                orderSignatures,
-                emptyBytes
-            );
-        }
-
-        // actually make the gasless swaps
-        cheats.startPrank(submitter);
-        multicall.aggregate(callsForMulticall);
-        cheats.stopPrank();
-
-        // log address balances
-        for (uint256 i; i < numberUsers; ++i) {
-            uint256 userBalance = _getUserBalance(users[i], orders[i].tokenOut);
-            emit log_named_uint("userBalance", userBalance);
-            require(userBalance >= _amountOutMin, "order not fulfilled correctly!");    
-        }  
-    }
-
 
     function _getUserBalance(address user, address token) internal view returns (uint256) {
         if (token == address(0)) {
@@ -570,5 +500,170 @@ contract Tests is
             return IERC20(token).balanceOf(user);
         }
     }
+
+    function _getPermitHash(address user, BridgelessOrder_Base memory orderBase) internal view returns (bytes32) {
+        IERC20Permit permitToken = IERC20Permit(orderBase.tokenIn);
+        uint256 nonce = permitToken.nonces(user);
+        bytes32 domainSeparator = permitToken.DOMAIN_SEPARATOR();
+
+        // calculation from USDC implementation code here -- https://etherscan.io/address/0xa2327a938febf5fec13bacfb16ae10ecbc4cbdcf#code
+        bytes memory data = abi.encode(
+            PERMIT_TYPEHASH,
+            user,
+            address(bridgeless),
+            orderBase.amountIn,
+            nonce,
+            orderBase.deadline
+        );
+        return(
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    domainSeparator,
+                    keccak256(data)
+                )
+            )
+        );
+    }
+
+    // util add-on to cheats.sign
+    function _getSignature(uint256 privateKey, bytes32 dataToSign) internal returns (Signature memory signature) {
+        // get signature and copy it over to struct
+        (signature.v, signature.r, signature.s) = cheats.sign(privateKey, dataToSign);        
+    }
+
+    // note that this POC uses the `permit` standard defined in EIP2612, but Bridgeless itself is ultimately agnostic to the signed approval format
+    function _formatPermitCall(address user, BridgelessOrder_Base memory orderBase, Signature memory permitSignature) internal view returns (bytes memory callData) {
+        callData = abi.encodeWithSelector(
+            // permit(address,address,uint256,uint256,uint8,bytes32,bytes32) has selector 0xd505accf
+            IERC20Permit.permit.selector,
+            user,
+            // assumes permit is to `bridgeless` address
+            address(bridgeless),
+            orderBase.amountIn,
+            orderBase.deadline,
+            permitSignature.v,
+            permitSignature.r,
+            permitSignature.s
+        );
+    }
+
+    // set up a `Bridgeless.fulfillOrder_Simple` call
+    // currently use an `emptyBytes` arg for `extraCalldata`
+    function _formatFulfillOrderCall_Simple(
+        BridgelessOrder_Simple memory order,
+        Signature memory orderSignature,
+        bytes memory extraCalldata
+    )
+        internal view returns (bytes memory callData)
+    {
+        // function fulfillOrder(
+        //     IBridgelessCallee swapper,
+        //     BridgelessOrder_Simple calldata order,
+        //     Signature calldata signature,
+        //     bytes calldata extraCalldata
+        // )
+        callData = abi.encodeWithSelector(
+            Bridgeless.fulfillOrder_Simple.selector,
+            // assumes `swapper` is `bridgelessSwapperUniswap`
+            bridgelessSwapperUniswap,
+            order,
+            orderSignature,
+            extraCalldata
+        );
+    }
+
+    // set up a `Bridgeless.fulfillOrder_Simple_OTC` call
+    // currently use an `emptyBytes` arg for `extraCalldata`
+    function _formatFulfillOrderCall_Simple_OTC(
+        BridgelessOrder_Simple_OTC memory order,
+        Signature memory orderSignature,
+        bytes memory extraCalldata
+    )
+        internal view returns (bytes memory callData)
+    {
+        // function fulfillOrder(
+        //     IBridgelessCallee swapper,
+        //     BridgelessOrder_Simple_OTC calldata order,
+        //     Signature calldata signature,
+        //     bytes calldata extraCalldata
+        // )
+        callData = abi.encodeWithSelector(
+            Bridgeless.fulfillOrder_Simple_OTC.selector,
+            // assumes `swapper` is `bridgelessSwapperUniswap`
+            bridgelessSwapperUniswap,
+            order,
+            orderSignature,
+            extraCalldata
+        );
+    }
+
+    // set up a `Bridgeless.fulfillOrder_WithNonce` call
+    // currently use an `emptyBytes` arg for `extraCalldata`
+    function _formatFulfillOrderCall_WithNonce(
+        BridgelessOrder_WithNonce memory order,
+        Signature memory orderSignature,
+        bytes memory extraCalldata
+    )
+        internal view returns (bytes memory callData)
+    {
+        // function fulfillOrder(
+        //     IBridgelessCallee swapper,
+        //     BridgelessOrder_WithNonce calldata order,
+        //     Signature calldata signature,
+        //     bytes calldata extraCalldata
+        // )
+        callData = abi.encodeWithSelector(
+            Bridgeless.fulfillOrder_WithNonce.selector,
+            // assumes `swapper` is `bridgelessSwapperUniswap`
+            bridgelessSwapperUniswap,
+            order,
+            orderSignature,
+            extraCalldata
+        );
+    }
+
+    // set up a `Bridgeless.fulfillOrder_WithNonce_OTC` call
+    // currently use an `emptyBytes` arg for `extraCalldata`
+    function _formatFulfillOrderCall_WithNonce_OTC(
+        BridgelessOrder_WithNonce_OTC memory order,
+        Signature memory orderSignature,
+        bytes memory extraCalldata
+    )
+        internal view returns (bytes memory callData)
+    {
+        // function fulfillOrder(
+        //     IBridgelessCallee swapper,
+        //     BridgelessOrder_WithNonce_OTC calldata order,
+        //     Signature calldata signature,
+        //     bytes calldata extraCalldata
+        // )
+        callData = abi.encodeWithSelector(
+            Bridgeless.fulfillOrder_WithNonce_OTC.selector,
+            // assumes `swapper` is `bridgelessSwapperUniswap`
+            bridgelessSwapperUniswap,
+            order,
+            orderSignature,
+            extraCalldata
+        );
+    }
+
+    function _deployContracts() internal {
+        // deploy the Bridgeless contract
+        bridgeless = new Bridgeless();
+        // deploy POC IBridgelessCallee contract
+        bridgelessSwapperUniswap = new BridgelessSwapperUniswap(ROUTER);
+    }
+
+    function _makeOrder_Base(address _signer) internal view returns (BridgelessOrder_Base memory orderBase) {
+        orderBase.signer = _signer;
+        orderBase.tokenIn = _tokenToSwap;
+        orderBase.tokenOut = _tokenOut;
+        orderBase.amountIn = _amountIn;
+        orderBase.amountOutMin = _amountOutMin;
+        orderBase.deadline = _deadline;
+    }
+
+
 }
 

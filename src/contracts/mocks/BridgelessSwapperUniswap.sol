@@ -58,16 +58,16 @@ contract BridgelessSwapperUniswap is
     // receive function to allow this contract to accept simple native-token transfers
     receive() external payable {}
 
-    function bridgelessCall(address swapDestination, BridgelessOrder calldata order, bytes memory) public {
+    function bridgelessCall(BridgelessOrder_Base calldata orderBase, bytes memory) public {
         // approve the router to transfer tokens
-        IERC20(order.tokenIn).safeApprove(address(ROUTER), order.amountIn);
+        IERC20(orderBase.tokenIn).safeApprove(address(ROUTER), orderBase.amountIn);
 
         // if swap to native token
-        if (order.tokenOut == address(0)) {
+        if (orderBase.tokenOut == address(0)) {
             // set up path variable. swap `tokenIn` to `tokenOut`
             address[] memory _path = new address[](2);
             // `tokenIn`
-            _path[0] = order.tokenIn;
+            _path[0] = orderBase.tokenIn;
             // canonical wrapped-token
             uint256 chainId = block.chainid;
             if (chainId != 43114) {
@@ -83,15 +83,15 @@ contract BridgelessSwapperUniswap is
             //     address[] calldata path,
             //     address to,
             //     uint deadline
-            // ) external;
+            // ) external;s
             (bool success, bytes memory returnData) = address(ROUTER).call(
                 abi.encodeWithSelector(
                     SELECTOR_swapExactTokensForETHSupportingFeeOnTransferTokens,
-                    order.amountIn,
-                    order.amountOutMin,
+                    orderBase.amountIn,
+                    orderBase.amountOutMin,
                     _path,
                     address(this),
-                    order.deadline
+                    orderBase.deadline
                 )
             );
 
@@ -102,12 +102,12 @@ contract BridgelessSwapperUniswap is
 
             // check amount out
             uint256 amountOut = address(this).balance;
-            require(amountOut >= order.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < order.amountOutMin");
-            Address.sendValue(payable(swapDestination), order.amountOutMin);
+            require(amountOut >= orderBase.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < orderBase.amountOutMin");
+            Address.sendValue(payable(orderBase.signer), orderBase.amountOutMin);
             // transfer any remainder to `tx.origin`
-            uint256 profit = amountOut - order.amountOutMin;
+            uint256 profit = amountOut - orderBase.amountOutMin;
             if (profit != 0) {
-                emit log_named_address("profit obtained in token", order.tokenOut);
+                emit log_named_address("profit obtained in token", orderBase.tokenOut);
                 emit log_named_uint("amount of profit", profit);
                 Address.sendValue(payable(tx.origin), profit);
             }
@@ -117,7 +117,7 @@ contract BridgelessSwapperUniswap is
             // set up path variable. swap `tokenIn` to `tokenOut`
             address[] memory _path = new address[](3);
             // `tokenIn`
-            _path[0] = order.tokenIn;
+            _path[0] = orderBase.tokenIn;
             // canonical wrapped-token
             uint256 chainId = block.chainid;
             if (chainId != 43114) {
@@ -126,7 +126,7 @@ contract BridgelessSwapperUniswap is
                 // WAVAX
                 _path[1] = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
             }
-            _path[2] = order.tokenOut;          
+            _path[2] = orderBase.tokenOut;          
             // perform the swap
             // function swapExactTokensForTokensSupportingFeeOnTransferTokens(
             //     uint amountIn,
@@ -138,11 +138,11 @@ contract BridgelessSwapperUniswap is
             (bool success, bytes memory returnData) = address(ROUTER).call(
                 abi.encodeWithSelector(
                     IUniswapV2Router02.swapExactTokensForTokensSupportingFeeOnTransferTokens.selector,
-                    order.amountIn,
-                    order.amountOutMin,
+                    orderBase.amountIn,
+                    orderBase.amountOutMin,
                     _path,
                     address(this),
-                    order.deadline
+                    orderBase.deadline
                 )
             );
 
@@ -152,24 +152,24 @@ contract BridgelessSwapperUniswap is
             }
 
             // check amount out
-            uint256 amountOut = IERC20(order.tokenOut).balanceOf(address(this));
-            require(amountOut >= order.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < order.amountOutMin");
-            IERC20(order.tokenOut).transfer(swapDestination, order.amountOutMin);
+            uint256 amountOut = IERC20(orderBase.tokenOut).balanceOf(address(this));
+            require(amountOut >= orderBase.amountOutMin, "BridgelessSwapperUniswap.bridgelessCall: amount obtained < orderBase.amountOutMin");
+            IERC20(orderBase.tokenOut).transfer(orderBase.signer, orderBase.amountOutMin);
             // transfer any remainder to `tx.origin`
-            uint256 profit = amountOut - order.amountOutMin;
+            uint256 profit = amountOut - orderBase.amountOutMin;
             if (profit != 0) {
-                emit log_named_address("profit obtained in token", order.tokenOut);
+                emit log_named_address("profit obtained in token", orderBase.tokenOut);
                 emit log_named_uint("amount of profit", profit);
-                IERC20(order.tokenOut).transfer(tx.origin, profit);
+                IERC20(orderBase.tokenOut).transfer(tx.origin, profit);
             }
         }
     }
 
-    function bridgelessCalls(address[] calldata swapDestinations, BridgelessOrder[] calldata orders, bytes calldata) external {
-        uint256 ordersLength = orders.length;
+    function bridgelessCalls(BridgelessOrder_Base[] calldata orderBases, bytes calldata) external {
+        uint256 orderBasesLength = orderBases.length;
         bytes memory emptyBytes;
-        for (uint256 i; i < ordersLength;) {
-            bridgelessCall(swapDestinations[i], orders[i], emptyBytes);
+        for (uint256 i; i < orderBasesLength;) {
+            bridgelessCall(orderBases[i], emptyBytes);
 
             unchecked {
                 ++i;
