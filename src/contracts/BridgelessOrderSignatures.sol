@@ -32,6 +32,13 @@ abstract contract BridgelessOrderSignatures is
     bytes32 public constant ORDER_TYPEHASH_Base = keccak256(
         "BridgelessOrder_Base(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline)");
 
+    // struct BridgelessOrder_Simple {
+    //     BridgelessOrder_Base orderBase;
+    // }
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH_Simple = keccak256(
+        "BridgelessOrder_Simple(BridgelessOrder_Base orderBase)");
+
     /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple_OTC` order struct used by the contract
     bytes32 public constant ORDER_TYPEHASH_Simple_OTC = keccak256(
         "BridgelessOrder_Simple_OTC(BridgelessOrder_Base orderBase,address executor)");
@@ -61,7 +68,14 @@ abstract contract BridgelessOrderSignatures is
      * @param order A `BridgelessOrder_Simple`-type order
      */
     function calculateBridgelessOrderHash_Simple(BridgelessOrder_Simple calldata order) public pure returns (bytes32) {
-        return calculateBridgelessOrderHash_Base(order.orderBase);
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH_Simple,
+                    calculateBridgelessOrderHash_Base(order.orderBase)
+                )
+            )
+        );
     }
 
     /**
