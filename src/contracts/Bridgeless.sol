@@ -18,7 +18,8 @@ contract Bridgeless is
     Vm cheats = Vm(HEVM_ADDRESS);
     using SafeERC20 for IERC20;
     /// @notice The EIP-712 typehash for the contract's domain
-    bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
+    // bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
+    bytes32 public constant DOMAIN_TYPEHASH = 0x4e2c4bf03f58b0b9d87019acd26e490aca9f5097fac5fd3eed5cccf6342a8d85;
 
     // struct BridgelessOrder_Base {
     //     // ERC20 token to trade
@@ -32,13 +33,13 @@ contract Bridgeless is
     //     // signature expiration
     //     uint256 deadline;
     // }
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple` order struct used by the contract
-    bytes32 public constant ORDER_TYPEHASH_Simple = keccak256(
-        "BridgelessOrder_Simple(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline)");
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Base` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH_Base = keccak256(
+        "BridgelessOrder_Base(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline)");
 
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple` order struct used by the contract
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Base` order struct used by the contract
     bytes32 public constant ORDER_TYPEHASH_WithNonce = keccak256(
-        "BridgelessOrder_WithNonce(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline,address nonce)");
+        "BridgelessOrder_WithNonce(BridgelessOrder_Base orderBase,uint256 nonce)");
 
     /// @notice EIP-712 Domain separator
     bytes32 public immutable DOMAIN_SEPARATOR;
@@ -47,7 +48,7 @@ contract Bridgeless is
     mapping(address => mapping(uint256 => bool)) public nonceIsSpent;
 
     // verify that the `tokenOwner` receives *at least* `amountOutMin in `tokenOut` from the swap
-    modifier checkOrderExecution(
+    modifier checkOrderFulfillment(
         address tokenOwner,
         address tokenOut,
         uint256 amountOutMin
@@ -61,8 +62,17 @@ contract Bridgeless is
         // verify that the `tokenOwner` received *at least* `amountOutMin` in `tokenOut` *after* function has run
         require(
             _getUserBalance(tokenOwner, tokenOut) - ownerBalanceBefore >= amountOutMin,
-            "Bridgeless.checkOrderExecution: amountOutMin not met!"
+            "Bridgeless.checkOrderFulfillment: amountOutMin not met!"
         );
+    }
+
+    // Check an order deadline. Orders must be executed at or before the UTC timestamp specified by their `deadline`.
+    modifier checkOrderDeadline(uint256 deadline) {
+        require(
+            block.timestamp <= deadline,
+            "Bridgeless.checkOrderDeadline: block.timestamp > deadline"
+        );
+        _;
     }
 
     // verify that each of the `tokenOwners` receives *at least* `orders[i].orderBase.amountOutMin` in `tokenOut[i]` from the swap
@@ -74,6 +84,7 @@ contract Bridgeless is
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(DOMAIN_TYPEHASH, bytes("Bridgeless"), block.chainid, address(this))
         );
+        emit log_named_bytes32("DOMAIN_TYPEHASH", DOMAIN_TYPEHASH);
     }
 
     /**
@@ -86,8 +97,10 @@ contract Bridgeless is
      * @param signature A valid ECDSA signature of `order` provided by `tokenOwner`. This signature is verified
      *        by checking against `calculateBridgelessOrderHash_Simple(order)`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**.
+     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
-    function fulfillOrder(
+    function fulfillOrder_Simple(
         IBridgelessCallee swapper,
         address tokenOwner,
         BridgelessOrder_Simple calldata order,
@@ -95,20 +108,26 @@ contract Bridgeless is
         bytes calldata extraCalldata
     )   
         public virtual
-        // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
-        nonReentrant
+        // modifier to verify that order is still valid
+        checkOrderDeadline(order.orderBase.deadline)
         // modifier to verify correct order execution
-        checkOrderExecution(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        checkOrderFulfillment(tokenOwner, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        // nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
+        nonReentrant
+
     {
         // verify that `tokenOwner` did indeed sign `order` and that it is still valid
-        _validateOrder_Simple(tokenOwner, order, signature);
+        _checkOrderSignature_Simple(tokenOwner, order, signature);
 
-        // optimisically transfer the tokens to `swapper`
-        // assumes `permit` has already been called, or allowance has elsewise been provided!
+        // @dev Optimisically transfer the tokens to `swapper`
         IERC20(order.orderBase.tokenIn).safeTransferFrom(tokenOwner, address(swapper), order.orderBase.amountIn);
 
-        // forward on the swap instructions and pass execution to `swapper`
-        // `extraCalldata` can be e.g. multiple DEX orders
+        // @notice Forward on inputs and pass transaction execution onto arbitrary `swapper` contract
+        /**
+         * @notice Forward on the order inputs and pass transaction execution onto arbitrary `swapper` contract.
+         *          `extraCalldata` can be any set of execution instructions for the `swapper`
+         * @notice After execution of `swapper` completes, control is handed back to this contract and order fulfillment is verified.
+         */
         swapper.bridgelessCall(tokenOwner, order, extraCalldata);
     }
 
@@ -123,8 +142,12 @@ contract Bridgeless is
      * @param signatures A valid set of ECDSA signatures of `orders` provided by `tokenOwners`. Thess signature are verified
      *        by checking against `calculateBridgelessOrderHash_Simple(orders[i])`
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided by `tokenOwner` to **this contract**,
+     *      as well as *for each order*.
+     *      Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
      */
-    function fulfillOrders(
+
+    function fulfillOrders_Simple(
         IBridgelessCallee swapper,
         address[] calldata tokenOwners,
         BridgelessOrder_Simple[] calldata orders,
@@ -132,12 +155,12 @@ contract Bridgeless is
         bytes calldata extraCalldata
     )
         public virtual
-        // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
+        // nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // sanity check on input lengths
+        // cache array length in memory
         uint256 ownersLength = tokenOwners.length;
-        // scoped block used here to 'avoid stack too deep' errors
+        // @dev Sanity check on input lengths.
         {
             require(
                 ownersLength == orders.length,
@@ -149,18 +172,27 @@ contract Bridgeless is
             );
         }
 
-        // verify that `tokenOwners` did indeed sign `orders` and that they are still valid
-        // scoped block used here to 'avoid stack too deep' errors
+        // @dev Verify that the `orders` are all still valid.
         {
             for (uint256 i; i < ownersLength;) {
-                _validateOrder_Simple(tokenOwners[i], orders[i], signatures[i]);
+                _checkOrderDeadline(orders[i].orderBase.deadline);
                 unchecked {
                     ++i;
                 }
             }
         }
 
-        // get the `tokenOwners`'s balances of the `tokenOut`s, prior to any swap
+        // @dev Verify that the `tokenOwners` did indeed sign the `orders`.
+        {
+            for (uint256 i; i < ownersLength;) {
+                _checkOrderSignature_Simple(tokenOwners[i], orders[i], signatures[i]);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @dev Get the `tokenOwners`'s balances of the `tokenOut`s and cache them in memory, prior to any swap.
         uint256[] memory ownerBalancesBefore = new uint256[](ownersLength);
         // scoped block used here to 'avoid stack too deep' errors
         {
@@ -172,9 +204,7 @@ contract Bridgeless is
             }
         }
 
-        // optimisically transfer the tokens to `swapper`
-        // assumes `permit` has already been called, or allowance has elsewise been provided!
-        // scoped block used here to 'avoid stack too deep' errors
+        // @dev Optimisically transfer all of the tokens to `swapper`
         {
             for (uint256 i; i < ownersLength;) {
                 IERC20(orders[i].orderBase.tokenIn).safeTransferFrom(tokenOwners[i], address(swapper), orders[i].orderBase.amountIn);
@@ -184,11 +214,10 @@ contract Bridgeless is
             }
         }
 
-        // forward on the swap instructions and pass execution to `swapper`
-        // `extraCalldata` can be e.g. multiple DEX orders
+        // @notice Forward on inputs and pass transaction execution onto arbitrary `swapper` contract
         swapper.bridgelessCalls(tokenOwners, orders, extraCalldata);
 
-        // verify that each of the `tokenOwners` received *at least* `orders[i].orderBase.amountOutMin` in `tokenOut[i]` from the swap
+        // @de Verify that each of the `tokenOwners` received *at least* `orders[i].orderBase.amountOutMin` in `tokenOut[i]` from the swap.
         for (uint256 i; i < ownersLength;) {
             require(
                 _getUserBalance(tokenOwners[i], orders[i].orderBase.tokenOut) - ownerBalancesBefore[i] >= orders[i].orderBase.amountOutMin,
@@ -201,22 +230,30 @@ contract Bridgeless is
     }
 
     /**
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Base`
+     * @param orderBase A `BridgelessOrder_Base` ojbect
+     */
+    function calculateBridgelessOrderHash_Base(BridgelessOrder_Base calldata orderBase) public pure returns (bytes32) {
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH_Base,
+                    orderBase.tokenIn,
+                    orderBase.amountIn,
+                    orderBase.tokenOut,
+                    orderBase.amountOutMin,
+                    orderBase.deadline
+                )
+            )
+        );
+    }
+
+    /**
      * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Simple`
      * @param order A `BridgelessOrder_Simple`-type order
      */
     function calculateBridgelessOrderHash_Simple(BridgelessOrder_Simple calldata order) public pure returns (bytes32) {
-        return(
-            keccak256(
-                abi.encode(
-                    ORDER_TYPEHASH_Simple,
-                    order.orderBase.tokenIn,
-                    order.orderBase.amountIn,
-                    order.orderBase.tokenOut,
-                    order.orderBase.amountOutMin,
-                    order.orderBase.deadline
-                )
-            )
-        );
+        return calculateBridgelessOrderHash_Base(order.orderBase);
     }
 
     /**
@@ -228,24 +265,14 @@ contract Bridgeless is
             keccak256(
                 abi.encode(
                     ORDER_TYPEHASH_WithNonce,
-                    order.orderBase.tokenIn,
-                    order.orderBase.amountIn,
-                    order.orderBase.tokenOut,
-                    order.orderBase.amountOutMin,
-                    order.orderBase.deadline,
+                    calculateBridgelessOrderHash_Base(order.orderBase),
                     order.nonce
                 )
             )
         );
     }
 
-    function _validateOrder_Simple(address signer, BridgelessOrder_Simple calldata order, Signature calldata signature) internal view {
-        // check order deadline
-        require(
-            block.timestamp <= order.orderBase.deadline,
-            "Bridgeless._validateOrder_Simple: block.timestamp > order.orderBase.deadline"
-        );
-
+    function _checkOrderSignature_Simple(address signer, BridgelessOrder_Simple calldata order, Signature calldata signature) internal pure {
         // verify the order signature
         require(
             signer == ECDSA.recover(
@@ -255,9 +282,17 @@ contract Bridgeless is
                 signature.r,
                 signature.s
             ),
-            "Bridgeless._validateOrder_Simple: signer != recoveredAddress"
+            "Bridgeless._checkOrderSignature_Simple: signer != recoveredAddress"
         );
     }
+
+    function _checkOrderDeadline(uint256 deadline) internal view {
+        require(
+            block.timestamp <= deadline,
+            "Bridgeless._checkOrderDeadline: block.timestamp > deadline"
+        );
+    }
+
 
     // fetches the `user`'s balance of `token`, where `token == address(0)` indicates the chain's native token
     function _getUserBalance(address user, address token) internal view returns (uint256) {

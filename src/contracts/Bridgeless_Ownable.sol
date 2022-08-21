@@ -8,7 +8,7 @@ contract Bridgeless_Ownable is
     Bridgeless,
     Ownable
 {
-    function fulfillOrder(
+    function fulfillOrder_Simple(
         IBridgelessCallee swapper,
         address tokenOwner,
         BridgelessOrder_Simple calldata order,
@@ -18,7 +18,7 @@ contract Bridgeless_Ownable is
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
         public override nonReentrant onlyOwner
     {
-        super.fulfillOrder(
+        super.fulfillOrder_Simple(
             swapper,
             tokenOwner,
             order,
@@ -27,7 +27,7 @@ contract Bridgeless_Ownable is
         );
     }
 
-    function fulfillOrders(
+    function fulfillOrders_Simple(
         IBridgelessCallee swapper,
         address[] calldata tokenOwners,
         BridgelessOrder_Simple[] calldata orders,
@@ -37,7 +37,7 @@ contract Bridgeless_Ownable is
         // nonReentrant since we hand over control of execution to an arbitrary contract later in this function
         public override nonReentrant onlyOwner
     {
-        super.fulfillOrders(
+        super.fulfillOrders_Simple(
             swapper,
             tokenOwners,
             orders,

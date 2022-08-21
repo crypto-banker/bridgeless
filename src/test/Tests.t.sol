@@ -365,7 +365,7 @@ contract Tests is
         );
         }
 
-        // set up the `Bridgeless.fulfillOrder` call
+        // set up the `Bridgeless.fulfillOrder_Simple` call
         {
             callsForMulticall[1].target = address(bridgeless);
             // function fulfillOrder(
@@ -377,7 +377,7 @@ contract Tests is
             // )
             bytes memory emptyBytes;
             callsForMulticall[1].callData = abi.encodeWithSelector(
-                Bridgeless.fulfillOrder.selector,
+                Bridgeless.fulfillOrder_Simple.selector,
                 bridgelessSwapperUniswap,
                 user,
                 order,
@@ -393,7 +393,6 @@ contract Tests is
 
         // log address balances
         uint256 userBalance = _getUserBalance(user, order.orderBase.tokenOut);
-        emit log_named_uint("userBalance", userBalance);
         require(userBalance >= _amountOutMin, "order not fulfilled correctly!");
     }
 
@@ -528,7 +527,7 @@ contract Tests is
             tokenOwners[i] = users[i];
         }
 
-        // set up the `Bridgeless.fulfillOrders` call
+        // set up the `Bridgeless.fulfillOrders_Simple` call
         {
             callsForMulticall[numberUsers].target = address(bridgeless);
             // function fulfillOrders(
@@ -540,7 +539,7 @@ contract Tests is
             // )
             bytes memory emptyBytes;
             callsForMulticall[numberUsers].callData = abi.encodeWithSelector(
-                Bridgeless.fulfillOrders.selector,
+                Bridgeless.fulfillOrders_Simple.selector,
                 bridgelessSwapperUniswap,
                 tokenOwners,
                 orders,
