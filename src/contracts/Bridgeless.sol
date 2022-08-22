@@ -199,6 +199,49 @@ contract Bridgeless is
         );
     }
 
+
+    /**
+     * @notice Fulfills a single `BridgelessOrder_OptionalParameters`, swapping `order.orderBase.amountIn` of the ERC20 token `order.orderBase.tokenIn` for
+     *          *at least* `order.orderBase.amountOutMin` of `order.orderBase.TokenOut`.
+     * @notice Note that an input of `order.orderBase.tokenOut == address(0)` is used to indicate that the chain's *native token* is desired!
+     * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `order.orderBase.signer` to this contract!
+     * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(order, extraCalldata)`.
+     * @param order A valid `BridgelessOrder_OptionalParameters` created by `order.orderBase.signer`, specifying their desired order parameters.
+     * @param signature A valid ECDSA signature of `order` provided by `order.orderBase.signer`. This signature is verified
+     *        by checking against `calculateBridgelessOrderHash_OptionalParameters(order)`
+     * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
+     * @dev This function assumes that allowance of at least `order.orderBase.amountIn` of `order.orderBase.tokenIn` has already been provided
+     *       by `order.orderBase.signer` to **this contract**.
+     * @dev Allowance can be be provided by first calling `permit` on an ERC2612 token (either in a prior transaction or within the same transaction).
+     */
+    function fulfillOrder_OptionalParameters(
+        IBridgelessCallee swapper,
+        BridgelessOrder_OptionalParameters calldata order,
+        Signature calldata signature,
+        bytes calldata extraCalldata
+    )   
+        external virtual
+        // @dev Modifier to verify that order is still valid
+        checkOrderDeadline(order.orderBase.deadline)
+        // @dev Modifier to verify correct order execution
+        checkOrderFulfillment(order.orderBase.signer, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
+        nonReentrant
+    {
+        // @dev Verify that `order.orderBase.signer` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        _processOrderSignature_OptionalParameters(order, signature);
+
+        processOptionalParameters(order.orderBase, order.optionalParameters);
+        // @dev Fulfill the `order`
+        _fulfillOrder_Base(
+            swapper,
+            order.orderBase,
+            extraCalldata
+        );
+    }
+
+
+
     /**
      * @notice Fulfills any arbitrary number of `BridgelessOrder_Simple`s, swapping `order.orderBase.amountIn`
      *         of the ERC20 token `orders[i].orderBase.tokenIn` for *at least* `orders[i].orderBase.amountOutMin` of `orders[i].orderBase.TokenOut`.

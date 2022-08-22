@@ -49,6 +49,10 @@ abstract contract BridgelessOrderLibrary is
     bytes32 public constant ORDER_TYPEHASH_WithNonce_OTC = keccak256(
         "ORDER_TYPEHASH_WithNonce_OTC(BridgelessOrder_Base orderBase,uint256 nonce,address executor)");
 
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_WithNonce_OTC` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH_OptionalParameters = keccak256(
+        "ORDER_TYPEHASH_OptionalParameters(BridgelessOrder_Base orderBase,bytes optionalParameters)");
+
     /**
      * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Simple`
      * @param order A `BridgelessOrder_Simple`-type order
@@ -128,6 +132,22 @@ abstract contract BridgelessOrderLibrary is
                     calculateBridgelessOrderHash_Base(order.orderBase),
                     order.nonce,
                     order.executor
+                )
+            )
+        );
+    }
+
+    /**
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_OptionalParameters`
+     * @param order A `BridgelessOrder_OptionalParameters`-type order
+     */
+    function calculateBridgelessOrderHash_OptionalParameters(BridgelessOrder_OptionalParameters calldata order) public pure returns (bytes32) {
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH_OptionalParameters,
+                    calculateBridgelessOrderHash_Base(order.orderBase),
+                    order.optionalParameters
                 )
             )
         );

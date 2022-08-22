@@ -30,7 +30,7 @@ abstract contract BridgelessOrderSignatures is
     }
 
     function _processOrderSignature_Simple(BridgelessOrder_Simple calldata order, Signature calldata signature) internal {
-        // calculate the orderHash
+        // calculate the orderHash and mark it as spent
         bytes32 orderHash = calculateBridgelessOrderHash_Simple(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
@@ -43,7 +43,7 @@ abstract contract BridgelessOrderSignatures is
             order.executor == msg.sender,
             "Bridgeless._processOrderSignature_Simple_OTC: order.executor != msg.sender"
         );
-        // calculate the orderHash
+        // calculate the orderHash and mark it as spent
         bytes32 orderHash = calculateBridgelessOrderHash_Simple_OTC(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
@@ -57,7 +57,7 @@ abstract contract BridgelessOrderSignatures is
         }
         // mark nonce as spent
         nonceIsSpent[order.orderBase.signer][order.nonce] = true;
-        // calculate the orderHash
+        // calculate the orderHash and mark it as spent
         bytes32 orderHash = calculateBridgelessOrderHash_WithNonce(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
@@ -68,7 +68,7 @@ abstract contract BridgelessOrderSignatures is
         // verify that `executor` is correct
         require(
             order.executor == msg.sender,
-            "Bridgeless._processOrderSignature_Simple_OTC: order.executor != msg.sender"
+            "Bridgeless._processOrderSignature_WithNonce_OTC: order.executor != msg.sender"
         );
         // check nonce validity
         if (nonceIsSpent[order.orderBase.signer][order.nonce]) {
@@ -76,12 +76,19 @@ abstract contract BridgelessOrderSignatures is
         }
         // mark nonce as spent
         nonceIsSpent[order.orderBase.signer][order.nonce] = true;
-        // calculate the orderHash
+        // calculate the orderHash and mark it as spent
         bytes32 orderHash = calculateBridgelessOrderHash_WithNonce_OTC(order);
         _markOrderHashAsSpent(orderHash);
         // verify the order signature
         _checkOrderSignature(order.orderBase.signer, orderHash, signature);
+    }
 
+    function _processOrderSignature_OptionalParameters(BridgelessOrder_OptionalParameters calldata order, Signature calldata signature) internal {
+        // calculate the orderHash and mark it as spent
+        bytes32 orderHash = calculateBridgelessOrderHash_OptionalParameters(order);
+        _markOrderHashAsSpent(orderHash);
+        // verify the order signature
+        _checkOrderSignature(order.orderBase.signer, orderHash, signature);
     }
 
     function _markOrderHashAsSpent(bytes32 orderHash) internal {
