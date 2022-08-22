@@ -664,6 +664,27 @@ contract Tests is
         orderBase.deadline = _deadline;
     }
 
+    function testPackUnpackOptionalParameters() public {
+        // deploy the Bridgeless contract
+        bridgeless = new Bridgeless();
+        emit log("testing");
+        address executor = submitter;
+        uint256 nonce = 4844;
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, executor, nonce);
+        emit log_named_bytes("optionalParameters", optionalParameters);
 
+        bridgeless.unpackOptionalParameters(optionalParameters);
+    }
+
+    function testParseOptionalParameters() public {
+        // deploy the Bridgeless contract
+        bridgeless = new Bridgeless();
+        // input to `_makeOrder_Base` doesn't matter here
+        BridgelessOrder_Base memory orderBase = _makeOrder_Base(user);
+        address executor = submitter;
+        uint256 nonce = 4844;
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, executor, nonce);
+        bridgeless.parseOptionalParameters(orderBase, optionalParameters);
+    }
 }
 
