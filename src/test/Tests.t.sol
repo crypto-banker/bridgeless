@@ -506,15 +506,23 @@ contract Tests is
         orderBase.optionalParameters = emptyBytes;
     }
 
-    function testPackUnpackOptionalParameters() public {
+    function testPackUnpackOptionalParameters(bool _usingOTC, bool _usingNonce, address executor_, uint256 nonce_) public {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _nonce);
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(_usingOTC, _usingNonce, executor_, nonce_);
         (bool usingOTC, bool usingNonce, address executor, uint256 nonce) = bridgeless.unpackOptionalParameters(optionalParameters);
-        assertTrue(usingOTC);
-        assertTrue(usingNonce);
-        assertEq(executor, address(multicall));
-        assertEq(nonce, _nonce);
+        assertTrue(usingOTC == _usingOTC);
+        assertTrue(usingNonce == _usingNonce);
+        if (_usingOTC) {
+            assertEq(executor, executor_);            
+        } else {
+            assertEq(executor, address(0));            
+        }
+        if (_usingNonce) {
+            assertEq(nonce, nonce_);            
+        } else {
+            assertEq(nonce, uint256(0));            
+        }
     }
 
     function testProcessOptionalParameters() public {

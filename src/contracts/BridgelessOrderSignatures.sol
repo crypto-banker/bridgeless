@@ -48,9 +48,13 @@ abstract contract BridgelessOrderSignatures is
     }
 
     /**
-     * Experimental `optionalParameters` format is:
-     * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
-     * bytes32[numberOfPositiveFlags]: for each flag that is a '1', 32 bytes of additional calldata should be attached, encoding information relevant to that flag
+     * @notice Looks at the provided flags in `optionalParameters`, then processes each included optional parameter
+     * @dev Currentlyt there are two flags, `usingOTC` and `usingNonce`
+     * @param signer The user whose order is being processed. Used in nonce processing.
+     * @param optionalParameters A set of flags and 
+     * @dev The `optionalParameters` format is:
+     * (optional) bytes1: 8-bit map of flags to indicate presence of optional parameters -- do not need to include (but can include) for "simple" orders
+     * bytes : for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
      */
     function processOptionalParameters(address signer, bytes memory optionalParameters) public {
         // no optionalParams -- do nothing and return early

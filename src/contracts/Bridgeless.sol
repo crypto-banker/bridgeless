@@ -179,7 +179,7 @@ contract Bridgeless is
         // @notice Forward on inputs and pass transaction execution onto arbitrary `swapper` contract
         swapper.bridgelessCalls(orders, extraCalldata);
 
-        // @de Verify that each of the `order.signer`s received *at least* `orders[i].amountOutMin` in `tokenOut[i]` from the swap.
+        // @dev Verify that each of the `order.signer`s received *at least* `orders[i].amountOutMin` in `tokenOut[i]` from the swap.
         for (uint256 i; i < ordersLength;) {
             require(
                 _getUserBalance(orders[i].signer, orders[i].tokenOut) - ownerBalancesBefore[i] >= orders[i].amountOutMin,
