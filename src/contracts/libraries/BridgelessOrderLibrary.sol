@@ -4,14 +4,19 @@ pragma solidity ^0.8.12;
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../BridgelessStructs.sol";
 
+import "forge-std/Test.sol";
+
 abstract contract BridgelessOrderLibrary is
     BridgelessStructs
+    ,DSTest
 {
     /// @notice The EIP-712 typehash for the contract's domain
     // bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
     bytes32 public constant DOMAIN_TYPEHASH = 0x4e2c4bf03f58b0b9d87019acd26e490aca9f5097fac5fd3eed5cccf6342a8d85;
 
-    // struct BridgelessOrder_Base {
+    // struct BridgelessOrder {
+    //     // order signatory
+    //     address signer;
     //     // ERC20 token to trade
     //     address tokenIn;
     //     // amount of token to trade
@@ -22,112 +27,123 @@ abstract contract BridgelessOrderLibrary is
     //     uint256 amountOutMin;
     //     // signature expiration
     //     uint256 deadline;
+    //     // flags and info for all optional parameters
+    //     bytes optionalParameters;
     // }
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Base` order struct used by the contract
-    bytes32 public constant ORDER_TYPEHASH_Base = keccak256(
-        "BridgelessOrder_Base(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline)");
-
-    // struct BridgelessOrder_Simple {
-    //     BridgelessOrder_Base orderBase;
-    // }
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple` order struct used by the contract
-    bytes32 public constant ORDER_TYPEHASH_Simple = keccak256(
-        "BridgelessOrder_Simple(BridgelessOrder_Base orderBase)");
-
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_Simple_OTC` order struct used by the contract
-    bytes32 public constant ORDER_TYPEHASH_Simple_OTC = keccak256(
-        "BridgelessOrder_Simple_OTC(BridgelessOrder_Base orderBase,address executor)");
-
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_WithNonce` order struct used by the contract
-    bytes32 public constant ORDER_TYPEHASH_WithNonce = keccak256(
-        "BridgelessOrder_WithNonce(BridgelessOrder_Base orderBase,uint256 nonce)");
-
-    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_WithNonce_OTC` order struct used by the contract
-    bytes32 public constant ORDER_TYPEHASH_WithNonce_OTC = keccak256(
-        "ORDER_TYPEHASH_WithNonce_OTC(BridgelessOrder_Base orderBase,uint256 nonce,address executor)");
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH = keccak256(
+        "BridgelessOrder(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline,bytes optionalParameters)");
 
     /**
-     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Simple`
-     * @param order A `BridgelessOrder_Simple`-type order
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder`
+     * @param order A `BridgelessOrder`-type order
      */
-    function calculateBridgelessOrderHash_Simple(BridgelessOrder_Simple calldata order) public pure returns (bytes32) {
+    function calculateBridgelessOrderHash(BridgelessOrder calldata order) public pure returns (bytes32) {
         return(
             keccak256(
                 abi.encode(
-                    ORDER_TYPEHASH_Simple,
-                    calculateBridgelessOrderHash_Base(order.orderBase)
+                    ORDER_TYPEHASH,
+                    order.signer,
+                    order.tokenIn,
+                    order.amountIn,
+                    order.tokenOut,
+                    order.amountOutMin,
+                    order.deadline,
+                    order.optionalParameters
                 )
             )
         );
     }
 
     /**
-     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Base`
-     * @param orderBase A `BridgelessOrder_Base` ojbect
+     * Experimental `optionalParameters` format is:
+     * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
+     * abi.encodePacked(additional args): for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
      */
-    function calculateBridgelessOrderHash_Base(BridgelessOrder_Base calldata orderBase) public pure returns (bytes32) {
-        return(
-            keccak256(
-                abi.encode(
-                    ORDER_TYPEHASH_Base,
-                    orderBase.signer,
-                    orderBase.tokenIn,
-                    orderBase.amountIn,
-                    orderBase.tokenOut,
-                    orderBase.amountOutMin,
-                    orderBase.deadline
+    function packOptionalParameters(
+        bool usingOTC,
+        bool usingNonce,
+        address executor,
+        uint256 nonce
+    ) public pure returns (bytes memory optionalParameters)
+    {
+        // add a single bit at the front, used for flags
+        optionalParameters = abi.encodePacked(bytes1(0));
+        if (usingOTC) {
+            // concatenate the `executor` address in a 32-byte slot
+            optionalParameters = abi.encodePacked(optionalParameters, executor);
+            // OTC flag is first bit being 1 -- set this bit!
+            assembly {
+                mstore(
+                    add(optionalParameters, 32),
+                    or(mload(add(optionalParameters, 32)), 0x1000000000000000000000000000000000000000000000000000000000000000)
                 )
-            )
-        );
+            }
+        }
+        if (usingNonce) {
+            // concatenate the `nonce` value in a 32-byte slot
+            optionalParameters = abi.encodePacked(optionalParameters, nonce);
+            // nonce flag is second bit being 1 -- set this bit!
+            assembly {
+                mstore(
+                    add(optionalParameters, 32),
+                    or(mload(add(optionalParameters, 32)), 0x2000000000000000000000000000000000000000000000000000000000000000)
+                )
+            }
+        }
+        return optionalParameters;
     }
 
     /**
-     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Simple_OTC`
-     * @param order A `BridgelessOrder_Simple_OTC`-type order
+     * Experimental `optionalParameters` format is:
+     * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
+     * bytes32[numberOfPositiveFlags]: for each flag that is a '1', 32 bytes of additional calldata should be attached, encoding information relevant to that flag
      */
-    function calculateBridgelessOrderHash_Simple_OTC(BridgelessOrder_Simple_OTC calldata order) public pure returns (bytes32) {
-        return(
-            keccak256(
-                abi.encode(
-                    ORDER_TYPEHASH_Simple_OTC,
-                    calculateBridgelessOrderHash_Base(order.orderBase),
-                    order.executor
-                )
+    function unpackOptionalParameters(bytes memory optionalParameters) public returns (bool usingOTC, bool usingNonce, address executor, uint256 nonce) {
+        if (optionalParameters.length <= 1) {
+            emit log("no optional parameters encoded");
+        }
+        // account for the 32 bytes of data that encode length
+        uint256 additionalOffset = 32;
+        assembly {
+            // OTC flag is first bit being 1
+            usingOTC := eq(
+                and(
+                    mload(add(optionalParameters, additionalOffset)),
+                    0x1000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x1000000000000000000000000000000000000000000000000000000000000000
             )
-        );
-    }
-
-    /**
-     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_WithNonce`
-     * @param order A `BridgelessOrder_WithNonce`-type order
-     */
-    function calculateBridgelessOrderHash_WithNonce(BridgelessOrder_WithNonce calldata order) public pure returns (bytes32) {
-        return(
-            keccak256(
-                abi.encode(
-                    ORDER_TYPEHASH_WithNonce,
-                    calculateBridgelessOrderHash_Base(order.orderBase),
-                    order.nonce
-                )
+            // nonce flag is second bit being 1
+            usingNonce := eq(
+                and(
+                    mload(add(optionalParameters, additionalOffset)),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
             )
-        );
-    }
-
-    /**
-     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_WithNonce_OTC`
-     * @param order A `BridgelessOrder_WithNonce_OTC`-type order
-     */
-    function calculateBridgelessOrderHash_WithNonce_OTC(BridgelessOrder_WithNonce_OTC calldata order) public pure returns (bytes32) {
-        return(
-            keccak256(
-                abi.encode(
-                    ORDER_TYPEHASH_WithNonce_OTC,
-                    calculateBridgelessOrderHash_Base(order.orderBase),
-                    order.nonce,
-                    order.executor
+                // add to additionalOffset to account for the 1 byte of data that was read
+                additionalOffset := add(additionalOffset, 1)
+        }
+        // run OTC check if necessary
+        if (usingOTC) {
+            assembly {
+                // read executor address -- address is 160 bits so we right-shift by (256-160) = 96
+                executor := shr(96,
+                    mload(add(optionalParameters, additionalOffset))
                 )
-            )
-        );
+                // add to additionalOffset to account for the 20 bytes of data that was read
+                additionalOffset := add(additionalOffset, 20)                    
+            }          
+        }
+        // run nonce check if necessary
+        if (usingNonce) {
+            assembly {
+                nonce := mload(add(optionalParameters, additionalOffset))
+                // add to additionalOffset to account for the 32 bytes of data that was read
+                additionalOffset := add(additionalOffset, 32)
+            }
+        }
     }
 
     function _checkOrderDeadline(uint256 deadline) internal view {
