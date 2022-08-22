@@ -99,60 +99,51 @@ abstract contract BridgelessOrderLibrary is
      * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
      * bytes32[numberOfPositiveFlags]: for each flag that is a '1', 32 bytes of additional calldata should be attached, encoding information relevant to that flag
      */
-    function unpackOptionalParameters(bytes calldata optionalParameters) public {
+    function unpackOptionalParameters(bytes memory optionalParameters) public returns (bool usingOTC, bool usingNonce, address executor, uint256 nonce) {
         if (optionalParameters.length <= 1) {
             emit log("no optional parameters encoded");
         }
-        bool usingOTC;
-        bool usingNonce;
-        uint256 additionalOffset = 1;
-        // TODO: make sure using optionalParameters.offset is correct here -- verify that we aren't just reading the length, for instance
+        // account for the 32 bytes of data that encode length
+        uint256 additionalOffset = 32;
         assembly {
             // OTC flag is first bit being 1
-            usingOTC := and(calldataload(optionalParameters.offset), 0x1000000000000000000000000000000000000000000000000000000000000000)
+            usingOTC := eq(
+                and(
+                    mload(add(optionalParameters, additionalOffset)),
+                    0x1000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x1000000000000000000000000000000000000000000000000000000000000000
+            )
             // nonce flag is second bit being 1
-            usingNonce := and(calldataload(optionalParameters.offset), 0x2000000000000000000000000000000000000000000000000000000000000000)
+            usingNonce := eq(
+                and(
+                    mload(add(optionalParameters, additionalOffset)),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
+            )
+                // add to additionalOffset to account for the 1 byte of data that was read
+                additionalOffset := add(additionalOffset, 1)
         }
         // run OTC check if necessary
         if (usingOTC) {
-            emit log("usingOTC is true!");
-            emit log_named_uint("additionalOffset", additionalOffset);
-            address executor;
             assembly {
                 // read executor address -- address is 160 bits so we right-shift by (256-160) = 96
                 executor := shr(96,
-                    calldataload(
-                        add(
-                            optionalParameters.offset,
-                            additionalOffset
-                        )
-                    )
+                    mload(add(optionalParameters, additionalOffset))
                 )
                 // add to additionalOffset to account for the 20 bytes of data that was read
                 additionalOffset := add(additionalOffset, 20)                    
-            }
-            emit log_named_address("executor", executor);
-            emit log_named_uint("additionalOffset", additionalOffset);
+            }          
         }
         // run nonce check if necessary
         if (usingNonce) {
-            emit log("usingNonce is true!");
-            uint256 nonce;
             assembly {
-                nonce := 
-                    calldataload(
-                        add(
-                            optionalParameters.offset,
-                            additionalOffset
-                        )
-                    )
+                nonce := mload(add(optionalParameters, additionalOffset))
                 // add to additionalOffset to account for the 32 bytes of data that was read
-                additionalOffset := add(additionalOffset, 32)                    
+                additionalOffset := add(additionalOffset, 32)
             }
-            emit log_named_uint("nonce", nonce);
-            emit log_named_uint("additionalOffset", additionalOffset);
         }
-        return;
     }
 
     function _checkOrderDeadline(uint256 deadline) internal view {

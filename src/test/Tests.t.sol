@@ -510,7 +510,11 @@ contract Tests is
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
         bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _nonce);
-        bridgeless.unpackOptionalParameters(optionalParameters);
+        (bool usingOTC, bool usingNonce, address executor, uint256 nonce) = bridgeless.unpackOptionalParameters(optionalParameters);
+        assertTrue(usingOTC);
+        assertTrue(usingNonce);
+        assertEq(executor, address(multicall));
+        assertEq(nonce, _nonce);
     }
 
     function testProcessOptionalParameters() public {
@@ -519,7 +523,7 @@ contract Tests is
         // signer input shouldn't matter here
         address _signer = user;
         // emit log_named_bytes("order", abi.encode(order));
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _nonce);
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(this), _nonce);
         // emit log_named_bytes("order", abi.encode(order));
         bridgeless.processOptionalParameters(_signer, optionalParameters);
     }
