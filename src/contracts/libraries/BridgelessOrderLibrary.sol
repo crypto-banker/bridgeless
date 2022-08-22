@@ -4,11 +4,11 @@ pragma solidity ^0.8.12;
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../BridgelessStructs.sol";
 
-import "forge-std/Test.sol";
+// import "forge-std/Test.sol";
 
 abstract contract BridgelessOrderLibrary is
     BridgelessStructs
-    ,DSTest
+    // ,DSTest
 {
     /// @notice The EIP-712 typehash for the contract's domain
     // bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
@@ -99,10 +99,7 @@ abstract contract BridgelessOrderLibrary is
      * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
      * bytes32[numberOfPositiveFlags]: for each flag that is a '1', 32 bytes of additional calldata should be attached, encoding information relevant to that flag
      */
-    function unpackOptionalParameters(bytes memory optionalParameters) public returns (bool usingOTC, bool usingNonce, address executor, uint256 nonce) {
-        if (optionalParameters.length <= 1) {
-            emit log("no optional parameters encoded");
-        }
+    function unpackOptionalParameters(bytes memory optionalParameters) public pure returns (bool usingOTC, bool usingNonce, address executor, uint256 nonce) {
         // account for the 32 bytes of data that encode length
         uint256 additionalOffset = 32;
         assembly {
@@ -146,13 +143,6 @@ abstract contract BridgelessOrderLibrary is
         }
     }
 
-    function _checkOrderDeadline(uint256 deadline) internal view {
-        require(
-            block.timestamp <= deadline,
-            "Bridgeless._checkOrderDeadline: block.timestamp > deadline"
-        );
-    }
-
     function _checkOrderSignature(address signer, bytes32 orderHash, Signature calldata signature) internal pure {
         require(
             signer == ECDSA.recover(
@@ -162,6 +152,13 @@ abstract contract BridgelessOrderLibrary is
                 signature.s
             ),
             "Bridgeless._checkOrderSignature: signer != recoveredAddress"
+        );
+    }
+
+    function _checkOrderDeadline(uint256 deadline) internal view {
+        require(
+            block.timestamp <= deadline,
+            "Bridgeless._checkOrderDeadline: block.timestamp > deadline"
         );
     }
 }
