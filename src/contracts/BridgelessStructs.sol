@@ -49,6 +49,11 @@ interface BridgelessStructs {
         address executor;
     }
 
+    struct BridgelessOrder_OptionalParameters {
+        BridgelessOrder_Base orderBase;
+        bytes optionalParameters;
+    }
+
     // @notice ECDSA signature parameters
     struct Signature {
         uint8 v;

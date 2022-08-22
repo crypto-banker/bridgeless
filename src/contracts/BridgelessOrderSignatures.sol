@@ -93,4 +93,79 @@ abstract contract BridgelessOrderSignatures is
         // mark orderHash as spent
         orderHashIsSpent[orderHash] = true;
     }
+
+    function _parseOptionalParameters(BridgelessOrder_Base calldata orderBase, bytes calldata optionalParameters) internal {
+        uint256 paramsLength = optionalParameters.length / 32;
+        // no optionalParams -- do nothing and return early
+        if (paramsLength == 0) {
+            return;
+        }
+        bool usingOTC;
+        bool usingNonce;
+        uint256 additionalOffset;
+        // TODO: make sure using optionalParameters.offset is correct here -- verify that we aren't just reading the length, for instance
+        assembly {
+            // OTC flag is first bit being 1
+            usingOTC := and(calldataload(optionalParameters.offset), 1)
+            // nonce flag is second bit being 1
+            usingNonce := and(calldataload(optionalParameters.offset), 2)
+        }
+        // run OTC check if necessary
+        if (usingOTC) {
+            address executor;
+            // address is 160 bits so we right-shift by (256-160) = 96
+            assembly {
+                // read executor address
+                executor := shr(96, calldataload(optionalParameters.offset))
+                // add to additionalOffset to account for the data that was read
+                additionalOffset := add(mload(additionalOffset), 32)
+            }
+            require(
+                executor == msg.sender,
+                "Bridgeless._checkOptionalParameters: executor != msg.sender"
+            );            
+        }
+        // run nonce check if necessary
+        if (usingNonce) {
+            uint256 nonce;
+            assembly {
+                nonce := calldataload(
+                        add(
+                            optionalParameters.offset,
+                            mload(additionalOffset)
+                        )
+                    )
+                // add to additionalOffset to account for the data that was read
+                additionalOffset := add(mload(additionalOffset), 32)
+            }
+            // check nonce validity
+            if (nonceIsSpent[orderBase.signer][nonce]) {
+                revert("Bridgeless._checkOptionalParameters: nonce is already spent");
+            }
+            // mark nonce as spent
+            nonceIsSpent[orderBase.signer][nonce] = true;
+        }
+        return;
+    }
+
+
+// unused alternate draft of function
+/*
+    // struct BridgelessOrder_OptionalParameters {
+    //     BridgelessOrder_Base orderBase;
+    //     bytes optionalParameters;
+    // }
+    function _parseOptionalParameters(BridgelessOrder_OptionalParameters calldata order) internal {
+        uint256 paramsLength = order.optionalParameters.length / 32;
+        // no optionalParams -- do nothing and return early
+        if (paramsLength == 0) {
+            return;
+        }
+        bool OTC;
+        bool nonce;
+        bytes memory params = order.optionalParameters;
+        // TODO: make sure using order.optionalParameters.offset is correct here -- verify we aren't just reading the length, for instance
+    }
+*/
+
 }
