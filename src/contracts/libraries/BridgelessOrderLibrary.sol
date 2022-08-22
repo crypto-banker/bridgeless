@@ -79,7 +79,6 @@ abstract contract BridgelessOrderLibrary is
                     or(mload(add(optionalParameters, 32)), 0x1000000000000000000000000000000000000000000000000000000000000000)
                 )
             }
-            // emit log_named_bytes("optionalParameters after usingOTC", optionalParameters);
         }
         if (usingNonce) {
             // concatenate the `nonce` value in a 32-byte slot

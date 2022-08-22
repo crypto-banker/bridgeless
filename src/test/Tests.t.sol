@@ -124,13 +124,8 @@ contract Tests is
         _testAggregatedGaslessSwap(3);
     }
 
-    function _testGaslessSwap_Simple(bool swapForNative) internal {
-        _setUpSwapParameters(swapForNative);
+    function _doOrder(BridgelessOrder memory order) internal {
         _deployContracts();
-
-        // set up the order
-        BridgelessOrder memory order;
-        order = _makeOrder_Base(user);
 
         // send tokens to the user from existing whale address, purely for testing
         cheats.startPrank(addressToSendTokenFrom);
@@ -160,133 +155,42 @@ contract Tests is
         // actually make the gasless swap
         cheats.startPrank(submitter);
         multicall.aggregate(callsForMulticall);
-        cheats.stopPrank();
+        cheats.stopPrank();     
+    }
+
+    function _testGaslessSwap_Simple(bool swapForNative) internal {
+        _setUpSwapParameters(swapForNative);
+        // set up the order
+        BridgelessOrder memory order;
+        order = _makeOrder_Base(user);
+        _doOrder(order);
     }
 
     function _testGaslessSwap_Simple_OTC(bool swapForNative) internal {
         _setUpSwapParameters(swapForNative);
-        _deployContracts();
-
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        address executor = submitter;
-        uint256 nonce = 4844;
-        order.optionalParameters = bridgeless.packOptionalParameters(true, false, executor, nonce);
-
-        // send tokens to the user from existing whale address, purely for testing
-        cheats.startPrank(addressToSendTokenFrom);
-        IERC20(order.tokenIn).transfer(user, _amountIn);
-        cheats.stopPrank();
-
-        // set up calls for gasless swap
-        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
-
-        // get the permit hash
-        bytes32 permitHash = _getPermitHash(user, order);
-        // get the permit signature
-        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
-        // set up the `token.permit` call
-        callsForMulticall[0].target = _tokenToSwap;
-        callsForMulticall[0].callData = _formatPermitCall(user, order, permitSignature);
-
-        // get the order hash
-        orderHash = bridgeless.calculateBridgelessOrderHash(order);
-        // get the order signature
-        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
-        // set up the `Bridgeless.fulfillOrder` call
-        callsForMulticall[1].target = address(bridgeless);
-        bytes memory emptyBytes;
-        callsForMulticall[1].callData = _formatFulfillOrderCall(order, orderSignature, emptyBytes);
-
-        // actually make the gasless swap
-        cheats.startPrank(submitter);
-        multicall.aggregate(callsForMulticall);
-        cheats.stopPrank();
+        order.optionalParameters = bridgeless.packOptionalParameters(true, false, address(multicall), _nonce);
+        _doOrder(order);
     }
 
     function _testGaslessSwap_WithNonce(bool swapForNative) internal {
         _setUpSwapParameters(swapForNative);
-        _deployContracts();
-
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        address executor = submitter;
-        uint256 nonce = 4844;
-        order.optionalParameters = bridgeless.packOptionalParameters(false, true, executor, nonce);
-
-        // send tokens to the user from existing whale address, purely for testing
-        cheats.startPrank(addressToSendTokenFrom);
-        IERC20(order.tokenIn).transfer(user, _amountIn);
-        cheats.stopPrank();
-
-        // set up calls for gasless swap
-        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
-
-        // get the permit hash
-        bytes32 permitHash = _getPermitHash(user, order);
-        // get the permit signature
-        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
-        // set up the `token.permit` call
-        callsForMulticall[0].target = _tokenToSwap;
-        callsForMulticall[0].callData = _formatPermitCall(user, order, permitSignature);
-
-        // get the order hash
-        orderHash = bridgeless.calculateBridgelessOrderHash(order);
-        // get the order signature
-        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
-        // set up the `Bridgeless.fulfillOrder` call
-        callsForMulticall[1].target = address(bridgeless);
-        bytes memory emptyBytes;
-        callsForMulticall[1].callData = _formatFulfillOrderCall(order, orderSignature, emptyBytes);
-
-        // actually make the gasless swap
-        cheats.startPrank(submitter);
-        multicall.aggregate(callsForMulticall);
-        cheats.stopPrank();
+        order.optionalParameters = bridgeless.packOptionalParameters(false, true, address(multicall), _nonce);
+        _doOrder(order);
     }
 
     function _testGaslessSwap_WithNonce_OTC(bool swapForNative) internal {
         _setUpSwapParameters(swapForNative);
-        _deployContracts();
-
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        address executor = submitter;
-        uint256 nonce = 4844;
-        order.optionalParameters = bridgeless.packOptionalParameters(true, true, executor, nonce);
-
-        // send tokens to the user from existing whale address, purely for testing
-        cheats.startPrank(addressToSendTokenFrom);
-        IERC20(order.tokenIn).transfer(user, _amountIn);
-        cheats.stopPrank();
-
-        // set up calls for gasless swap
-        Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](2);
-
-        // get the permit hash
-        bytes32 permitHash = _getPermitHash(user, order);
-        // get the permit signature
-        Signature memory permitSignature = _getSignature(user_priv_key, permitHash);
-        // set up the `token.permit` call
-        callsForMulticall[0].target = _tokenToSwap;
-        callsForMulticall[0].callData = _formatPermitCall(user, order, permitSignature);
-
-        // get the order hash
-        orderHash = bridgeless.calculateBridgelessOrderHash(order);
-        // get the order signature
-        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
-        // set up the `Bridgeless.fulfillOrder` call
-        callsForMulticall[1].target = address(bridgeless);
-        bytes memory emptyBytes;
-        callsForMulticall[1].callData = _formatFulfillOrderCall(order, orderSignature, emptyBytes);
-
-        // actually make the gasless swap
-        cheats.startPrank(submitter);
-        multicall.aggregate(callsForMulticall);
-        cheats.stopPrank();
+        order.optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _nonce);
+        _doOrder(order);
     }
 
     function _testAggregatedGaslessSwap(uint8 numberUsers) internal {
@@ -605,9 +509,7 @@ contract Tests is
     function testPackUnpackOptionalParameters() public {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
-        address executor = submitter;
-        uint256 nonce = 4844;
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, executor, nonce);
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _nonce);
         bridgeless.unpackOptionalParameters(optionalParameters);
     }
 
@@ -616,10 +518,8 @@ contract Tests is
         bridgeless = new Bridgeless();
         // signer input shouldn't matter here
         address _signer = user;
-        address executor = submitter;
-        uint256 nonce = 4844;
         // emit log_named_bytes("order", abi.encode(order));
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, executor, nonce);
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _nonce);
         // emit log_named_bytes("order", abi.encode(order));
         bridgeless.processOptionalParameters(_signer, optionalParameters);
     }

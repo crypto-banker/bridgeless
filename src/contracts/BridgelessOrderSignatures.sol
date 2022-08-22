@@ -59,38 +59,39 @@ abstract contract BridgelessOrderSignatures is
         }
         bool usingOTC;
         bool usingNonce;
+        // account for the 32 bytes of data that encode length
+        uint256 additionalOffset = 32;
         assembly {
             // OTC flag is first bit being 1
-            usingOTC := and(
-                mload(optionalParameters),
-                0x1000000000000000000000000000000000000000000000000000000000000000
+            usingOTC := eq(
+                and(
+                    mload(add(optionalParameters, additionalOffset)),
+                    0x1000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x1000000000000000000000000000000000000000000000000000000000000000
             )
             // nonce flag is second bit being 1
-            usingNonce := and(
-                mload(optionalParameters),
-                0x2000000000000000000000000000000000000000000000000000000000000000
+            usingNonce := eq(
+                and(
+                    mload(add(optionalParameters, additionalOffset)),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
             )
+                // add to additionalOffset to account for the 1 byte of data that was read
+                additionalOffset := add(additionalOffset, 1)
         }
-        // account for the 1 byte of data that was already read
-        uint256 additionalOffset = 1;
         // run OTC check if necessary
         if (usingOTC) {
-            emit log("usingOTC is true!");
             address executor;
             assembly {
                 // read executor address -- address is 160 bits so we right-shift by (256-160) = 96
                 executor := shr(96,
-                    mload(
-                        add(
-                            optionalParameters,
-                            additionalOffset
-                        )
-                    )
+                    mload(add(optionalParameters, additionalOffset))
                 )
                 // add to additionalOffset to account for the 20 bytes of data that was read
                 additionalOffset := add(additionalOffset, 20)                    
             }
-            emit log_named_address("executor", executor);
             require(
                 executor == msg.sender,
                 "Bridgeless._checkOptionalParameters: executor != msg.sender"
@@ -98,20 +99,12 @@ abstract contract BridgelessOrderSignatures is
         }
         // run nonce check if necessary
         if (usingNonce) {
-            emit log("usingNonce is true!");
             uint256 nonce;
             assembly {
-                nonce := 
-                    mload(
-                        add(
-                            optionalParameters,
-                            additionalOffset
-                        )
-                    )
+                nonce := mload(add(optionalParameters, additionalOffset))
                 // add to additionalOffset to account for the 32 bytes of data that was read
                 additionalOffset := add(additionalOffset, 32)
             }
-            emit log_named_uint("nonce", nonce);
             // check nonce validity
             if (nonceIsSpent[signer][nonce]) {
                 revert("Bridgeless._checkOptionalParameters: nonce is already spent");
