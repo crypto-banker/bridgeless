@@ -16,23 +16,23 @@ contract Bridgeless_AccessControlEnumerable is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function fulfillOrder_Simple(
+    function fulfillOrder(
         IBridgelessCallee swapper,
-        BridgelessOrder_Simple calldata order,
+        BridgelessOrder calldata order,
         Signature calldata signature,
         bytes calldata extraCalldata
-    )
-        public override 
+    )   
+        public override
         // function is restricted to callers holding the "DEFAULT_ADMIN_ROLE"
         onlyRole(DEFAULT_ADMIN_ROLE)
         // @dev Modifier to verify that order is still valid
-        checkOrderDeadline(order.orderBase.deadline)
+        checkOrderDeadline(order.deadline)
         // @dev Modifier to verify correct order execution
-        checkOrderFulfillment(order.orderBase.signer, order.orderBase.tokenOut, order.orderBase.amountOutMin)
+        checkOrderFulfillment(order.signer, order.tokenOut, order.amountOutMin)
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        super.fulfillOrder_Simple(
+        super.fulfillOrder(
             swapper,
             order,
             signature,
@@ -40,9 +40,9 @@ contract Bridgeless_AccessControlEnumerable is
         );
     }
 
-    function fulfillOrders_Simple(
+    function fulfillOrders(
         IBridgelessCallee swapper,
-        BridgelessOrder_Simple[] calldata orders,
+        BridgelessOrder[] calldata orders,
         Signature[] calldata signatures,
         bytes calldata extraCalldata
     )
@@ -52,7 +52,7 @@ contract Bridgeless_AccessControlEnumerable is
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        super.fulfillOrders_Simple(
+        super.fulfillOrders(
             swapper,
             orders,
             signatures,
