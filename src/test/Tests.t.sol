@@ -164,7 +164,7 @@ contract Tests is
         // set up the order
         BridgelessOrder_Simple_OTC memory order;
         order.orderBase = _makeOrder_Base(user);
-        order.executor = submitter;
+        order.executor = address(multicall);
 
         // send tokens to the user from existing whale address, purely for testing
         cheats.startPrank(addressToSendTokenFrom);
@@ -245,7 +245,7 @@ contract Tests is
         BridgelessOrder_WithNonce_OTC memory order;
         order.orderBase = _makeOrder_Base(user);
         order.nonce = _nonce;
-        order.executor = submitter;
+        order.executor = address(multicall);
 
         // send tokens to the user from existing whale address, purely for testing
         cheats.startPrank(addressToSendTokenFrom);
