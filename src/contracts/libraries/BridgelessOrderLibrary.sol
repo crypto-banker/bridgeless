@@ -14,6 +14,26 @@ abstract contract BridgelessOrderLibrary is
     // bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract");
     bytes32 public constant DOMAIN_TYPEHASH = 0x4e2c4bf03f58b0b9d87019acd26e490aca9f5097fac5fd3eed5cccf6342a8d85;
 
+    // struct BridgelessOrder {
+    //     // order signatory
+    //     address signer;
+    //     // ERC20 token to trade
+    //     address tokenIn;
+    //     // amount of token to trade
+    //     uint256 amountIn;
+    //     // desired token to trade into
+    //     address tokenOut;
+    //     // minimum amount of native token to receive
+    //     uint256 amountOutMin;
+    //     // signature expiration
+    //     uint256 deadline;
+    //     // flags and info for all optional parameters
+    //     bytes optionalParameters;
+    // }
+    /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH` order struct used by the contract
+    bytes32 public constant ORDER_TYPEHASH = keccak256(
+        "BridgelessOrder(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline,bytes optionalParameters)");
+
     // struct BridgelessOrder_Base {
     //     // ERC20 token to trade
     //     address tokenIn;
@@ -52,6 +72,27 @@ abstract contract BridgelessOrderLibrary is
     /// @notice The EIP-712 typehash for the `ORDER_TYPEHASH_WithNonce_OTC` order struct used by the contract
     bytes32 public constant ORDER_TYPEHASH_OptionalParameters = keccak256(
         "ORDER_TYPEHASH_OptionalParameters(BridgelessOrder_Base orderBase,bytes optionalParameters)");
+
+    /**
+     * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder`
+     * @param order A `BridgelessOrder`-type order
+     */
+    function calculateBridgelessOrderHash(BridgelessOrder calldata order) public pure returns (bytes32) {
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH,
+                    order.signer,
+                    order.tokenIn,
+                    order.amountIn,
+                    order.tokenOut,
+                    order.amountOutMin,
+                    order.deadline,
+                    order.optionalParameters
+                )
+            )
+        );
+    }
 
     /**
      * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder_Simple`

@@ -17,6 +17,23 @@ interface BridgelessStructs {
         uint256 deadline;
     }
 
+    struct BridgelessOrder {
+        // order signatory
+        address signer;
+        // ERC20 token to trade
+        address tokenIn;
+        // amount of token to trade
+        uint256 amountIn;
+        // desired token to trade into
+        address tokenOut;
+        // minimum amount of native token to receive
+        uint256 amountOutMin;
+        // signature expiration
+        uint256 deadline;
+        // flags and info for all optional parameters
+        bytes optionalParameters;
+    }
+
     struct BridgelessOrder_Simple {
         BridgelessOrder_Base orderBase;
     }
