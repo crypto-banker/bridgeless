@@ -4,11 +4,11 @@ pragma solidity ^0.8.12;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./libraries/BridgelessOrderLibrary.sol";
 
-import "forge-std/Test.sol";
+// import "forge-std/Test.sol";
 
 abstract contract BridgelessOrderSignatures is
     BridgelessOrderLibrary
-    ,DSTest
+    // ,DSTest
 {
     using SafeERC20 for IERC20;
     /// @notice EIP-712 Domain separator
@@ -99,7 +99,7 @@ abstract contract BridgelessOrderSignatures is
      * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
      * bytes32[numberOfPositiveFlags]: for each flag that is a '1', 32 bytes of additional calldata should be attached, encoding information relevant to that flag
      */
-    function parseOptionalParameters(BridgelessOrder_Base calldata orderBase, bytes calldata optionalParameters) public {
+    function processOptionalParameters(BridgelessOrder_Base calldata orderBase, bytes calldata optionalParameters) public {
         uint256 paramsLength = optionalParameters.length / 32;
         // no optionalParams -- do nothing and return early
         if (paramsLength == 0) {
@@ -160,119 +160,13 @@ abstract contract BridgelessOrderSignatures is
         return;
     }
 
-    /**
-     * Experimental `optionalParameters` format is:
-     * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
-     * abi.encodePacked(additional args): for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
-     */
-    function packOptionalParameters(
-        bool usingOTC,
-        bool usingNonce,
-        address executor,
-        uint256 nonce
-    ) public returns (bytes memory optionalParameters)
-    {
-        emit log_named_bytes("optionalParameters", optionalParameters);
-        // add a single bit at the front, used for flags
-        optionalParameters = abi.encodePacked(bytes1(0));
-        emit log_named_bytes("optionalParameters", optionalParameters);
-        if (usingOTC) {
-            // concatenate the `executor` address in a 32-byte slot
-            optionalParameters = abi.encodePacked(optionalParameters, executor);
-            emit log_named_bytes("optionalParameters", optionalParameters);
-            // OTC flag is first bit being 1 -- set this bit!
-            assembly {
-                mstore(
-                    add(optionalParameters, 32),
-                    or(mload(add(optionalParameters, 32)), 0x1000000000000000000000000000000000000000000000000000000000000000)
-                )
-            }
-            emit log_named_bytes("optionalParameters", optionalParameters);
-        }
-        if (usingNonce) {
-            // concatenate the `nonce` value in a 32-byte slot
-            optionalParameters = abi.encodePacked(optionalParameters, nonce);
-            emit log_named_bytes("optionalParameters", optionalParameters);
-            // nonce flag is second bit being 1 -- set this bit!
-            assembly {
-                mstore(
-                    add(optionalParameters, 32),
-                    or(mload(add(optionalParameters, 32)), 0x2000000000000000000000000000000000000000000000000000000000000000)
-                )
-            }
-            emit log_named_bytes("optionalParameters", optionalParameters);
-        }
-        return optionalParameters;
-    }
-
-    /**
-     * Experimental `optionalParameters` format is:
-     * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
-     * bytes32[numberOfPositiveFlags]: for each flag that is a '1', 32 bytes of additional calldata should be attached, encoding information relevant to that flag
-     */
-    function unpackOptionalParameters(bytes calldata optionalParameters) public {
-        if (optionalParameters.length <= 1) {
-            emit log("no optional parameters encoded");
-        }
-        bool usingOTC;
-        bool usingNonce;
-        uint256 additionalOffset = 1;
-        // TODO: make sure using optionalParameters.offset is correct here -- verify that we aren't just reading the length, for instance
-        assembly {
-            // OTC flag is first bit being 1
-            usingOTC := and(calldataload(optionalParameters.offset), 0x1000000000000000000000000000000000000000000000000000000000000000)
-            // nonce flag is second bit being 1
-            usingNonce := and(calldataload(optionalParameters.offset), 0x2000000000000000000000000000000000000000000000000000000000000000)
-        }
-        // run OTC check if necessary
-        if (usingOTC) {
-            emit log("usingOTC is true!");
-            emit log_named_uint("additionalOffset", additionalOffset);
-            address executor;
-            assembly {
-                // read executor address -- address is 160 bits so we right-shift by (256-160) = 96
-                executor := shr(96,
-                    calldataload(
-                        add(
-                            optionalParameters.offset,
-                            additionalOffset
-                        )
-                    )
-                )
-                // add to additionalOffset to account for the 20 bytes of data that was read
-                additionalOffset := add(additionalOffset, 20)                    
-            }
-            emit log_named_address("executor", executor);
-            emit log_named_uint("additionalOffset", additionalOffset);
-        }
-        // run nonce check if necessary
-        if (usingNonce) {
-            emit log("usingNonce is true!");
-            uint256 nonce;
-            assembly {
-                nonce := 
-                    calldataload(
-                        add(
-                            optionalParameters.offset,
-                            additionalOffset
-                        )
-                    )
-                // add to additionalOffset to account for the 32 bytes of data that was read
-                additionalOffset := add(additionalOffset, 32)                    
-            }
-            emit log_named_uint("nonce", nonce);
-            emit log_named_uint("additionalOffset", additionalOffset);
-        }
-        return;
-    }
-
 // unused alternate draft of function
 /*
     // struct BridgelessOrder_OptionalParameters {
     //     BridgelessOrder_Base orderBase;
     //     bytes optionalParameters;
     // }
-    function _parseOptionalParameters(BridgelessOrder_OptionalParameters calldata order) internal {
+    function _processOptionalParameters(BridgelessOrder_OptionalParameters calldata order) internal {
         uint256 paramsLength = order.optionalParameters.length / 32;
         // no optionalParams -- do nothing and return early
         if (paramsLength == 0) {

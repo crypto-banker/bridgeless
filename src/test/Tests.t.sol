@@ -676,7 +676,7 @@ contract Tests is
         bridgeless.unpackOptionalParameters(optionalParameters);
     }
 
-    function testParseOptionalParameters() public {
+    function testProcessOptionalParameters() public {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
         // input to `_makeOrder_Base` doesn't matter here
@@ -684,7 +684,7 @@ contract Tests is
         address executor = submitter;
         uint256 nonce = 4844;
         bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, executor, nonce);
-        bridgeless.parseOptionalParameters(orderBase, optionalParameters);
+        bridgeless.processOptionalParameters(orderBase, optionalParameters);
     }
 }
 
