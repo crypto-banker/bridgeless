@@ -38,6 +38,11 @@ abstract contract BridgelessOrderSignatures is
     }
 
     function _processOrderSignature_Simple_OTC(BridgelessOrder_Simple_OTC calldata order, Signature calldata signature) internal {
+        // verify that `executor` is correct
+        require(
+            order.executor == msg.sender,
+            "Bridgeless._processOrderSignature_Simple_OTC: order.executor != msg.sender"
+        );
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash_Simple_OTC(order);
         _markOrderHashAsSpent(orderHash);
@@ -60,6 +65,11 @@ abstract contract BridgelessOrderSignatures is
     }
 
     function _processOrderSignature_WithNonce_OTC(BridgelessOrder_WithNonce_OTC calldata order, Signature calldata signature) internal {
+        // verify that `executor` is correct
+        require(
+            order.executor == msg.sender,
+            "Bridgeless._processOrderSignature_Simple_OTC: order.executor != msg.sender"
+        );
         // check nonce validity
         if (nonceIsSpent[order.orderBase.signer][order.nonce]) {
             revert("Bridgeless._processOrderSignature_WithNonce_OTC: nonce is already spent");
