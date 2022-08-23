@@ -15,27 +15,27 @@
 ## Introduction
 Bridgeless is a decentralized order book and conduit that sits outside and above existing decentralized exchanges. Orders exist off-chain until they are executed, and by design anyone can fulfill an order on behalf of the user who created it.
 
-Bridgeless is designed to do the minimum amount possible, to allow maximum flexibility in as many ways as possible. On order execution, Bridgeless verifies order legitimacy & validity, optimistically passes order fulfillment onto code specified by the Fulfiller, and verifies that the order was correctly fulfilled. That's it.
+Bridgeless is designed to do the minimum amount necessary, to allow maximum flexibility in as many ways as possible. On order execution, Bridgeless verifies order legitimacy & validity, optimistically passes order fulfillment onto code specified by the Fulfiller, and verifies that the order was correctly fulfilled. That's it.
 
 Through its flexible, minimal design, Bridgeless simultaneously realizes multiple upgrades to all DEXes in a permissionless fashion.
 
-By decoupling the order book from any single exchange, Bridgeless *flips the order flow* -- rather than forcing users to select a single DEX or even single DEX aggregator to "own" their order, users can broadcast their order and make aggregators compete to fill it! Driving aggregator competition to its maximum forces aggregators to compete in every aspect -- fastest execution, best matching engine, most gas-efficient implementation -- accelerating the rate of innovation and pushing the market to deliver the absolute best user experience.
+By decoupling the order book from any single exchange, Bridgeless *flips the order flow* – rather than forcing users to select a single DEX or even single DEX aggregator to "own" their order, users can broadcast their order and make aggregators compete to fill it! Driving aggregator competition to its maximum forces aggregators to compete in every aspect – fastest execution, best matching engine, most gas-efficient implementation – accelerating the rate of innovation and pushing the market to deliver the absolute best user experience.
 
 Since orders are simply digital signatures rather than transactions, order creation can be totally free. Splitting order creation and execution means order execution can be performed by the party *fulfilling* an order, rather than the user placing it. This means that *users never have to pay gas fees*, and in particular, costs for failed transactions are never borne by users, but instead only by aggregators.
 
-Bridgeless's powerful, composable orders can be combined into arbitrarily complex “programmable” order chains and order trees, enabling the construction of entire trading strategies through order composition. This empowers innovative new types of services, which can aide users in constructing sets of orders to achieve bespoke trading logic.
+Bridgeless's powerful, composable orders can be combined into arbitrarily complex “programmable” order chains and order trees, enabling the construction of entire trading strategies through order composition. This empowers innovative new types of services, which can aide users in constructing sets of orders for bespoke trading logic.
 
-Bridgeless currently supports swaps on any EVM-compatible blockchain, from any ERC20 token to either another ERC20 or the native token of the chain (ETH for Ethereum Mainnet, BNB for Binance Smart Chain, AVAX for Avalanche C-Chain, etc).
+Bridgeless currently supports orders on any EVM-compatible blockchain, from any ERC20 token to either another ERC20 token or the native token of the chain.
 
-Existing orders follow a *single standard* with optional flags and parameters to enhance order specificity while keeping the standard unified and extensible.
+Orders follow a *single standard* with optional flags and parameters to enhance order specificity while keeping the standard unified and extensible.
 
 The base of an order is an offer to trade `X` of `token A` for `Y` of `token B`, at or before the order's `deadline`.
 
 Optional Parameters currently supported are:
 
-* **Order Executor** -- specify an address that is allowed to execute your order. This can be your counterparty in an OTC trade, or a specific aggregator network that you trust to pay you referral fees / share trading revenue with you, etc.
-* **Order Nonce Set** -- create a set of orders, where at most one order in the nonce set can ever be executed. Create mutually-exclusive orders such as a set of limit orders to trade a fixed block at different prices, that open at different times.
-* **Order Delay** -- sign an order now that only becomes valid in the future. Combine with **nonce set** to make *conditional orders*, e.g. a limit order that becomes valid if your other order has not been fulfilled in the next hour.
+* **Order Executor** – specify an address that is allowed to execute your order. This can be your counterparty in an OTC trade, or a specific aggregator network that you trust to pay you referral fees, share trading revenue with you, etc.
+* **Order Nonce Set** – create a set of orders, where at most one order in the nonce set can ever be executed. Create mutually-exclusive orders such as a set of limit orders to trade the same fixed block of tokens against various other tokens, at different prices.
+* **Order Delay** – sign an order now that only becomes valid in the future. Combine with **nonce set** functionality to make *conditional orders*, e.g. a limit order that becomes valid only if your other order has not already been fulfilled an hour from now.
 
 Even more features coming soon.
 
