@@ -1,5 +1,18 @@
-<a name="intro"/></a>
 # Bridgeless
+
+## Table of Contents  
+* [Introduction](#introduction)
+* [Installation](#installation)
+* [Example Use Case & Order Flow](#example)
+* [Contracts](#contracts)
+* [Ethos](#ethos) 
+* [Future Improvements](#improvements)
+* [Contributing To or Building On Bridgeless](#contributing)
+* [Donating / Tips](#donating)
+* [Disclaimer](#disclaimer)
+
+<a name="introduction"/></a>
+## Introduction
 Bridgeless is a decentralized order book and conduit that sits outside and above existing decentralized exchanges. Orders exist off-chain until they are executed, and by design anyone can fulfill an order on behalf of the user who created it.
 
 Bridgeless is designed to do the minimum amount possible, to allow maximum flexibility in as many ways as possible. On order execution, Bridgeless verifies order legitimacy & validity, optimistically passes order fulfillment onto code specified by the Fulfiller, and verifies that the order was correctly fulfilled. That's it.
@@ -27,18 +40,6 @@ Optional Parameters currently supported are:
 Even more features coming soon.
 
 Check out the existing functionality showcased in our tests, or learn more by reading on below.
-
-
-## Table of Contents  
-* [Intro](#intro)
-* [Installation](#installation)
-* [Example Use Case & Order Flow](#example)
-* [Contracts](#contracts)
-* [Ethos](#ethos) 
-* [Future Improvements](#improvements)
-* [Contributing To or Building On Bridgeless](#contributing)
-* [Donating / Tips](#donating)
-* [Disclaimer](#disclaimer)
 
 
 <a name="installation"/></a>
