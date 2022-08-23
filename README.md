@@ -13,17 +13,19 @@
 
 <a name="introduction"/></a>
 ## Introduction
-Bridgeless is a decentralized order book and conduit that sits outside and above existing decentralized exchanges. Orders exist off-chain until they are executed, and by design anyone can fulfill an order on behalf of the user who created it.
+Bridgeless is a decentralized order book and conduit that sits outside of and above existing decentralized exchanges. Orders exist off-chain until they are executed, and by design anyone can fulfill an order on behalf of the user who created it.
 
 Bridgeless is designed to do the minimum amount necessary, to allow maximum flexibility in as many ways as possible. On order execution, Bridgeless verifies order legitimacy & validity, optimistically passes order fulfillment onto code specified by the Fulfiller, and verifies that the order was correctly fulfilled. That's it.
 
-Through its flexible, minimal design, Bridgeless simultaneously realizes multiple upgrades to all DEXes in a permissionless fashion.
+Through its flexible, minimal design, Bridgeless simultaneously realizes multiple upgrades to all DEXes in a permissionless fashion:
 
-By decoupling the order book from any single exchange, Bridgeless *flips the order flow* – rather than forcing users to select a single DEX or even single DEX aggregator to "own" their order, users can broadcast their order and make aggregators compete to fill it! Driving aggregator competition to its maximum forces aggregators to compete in every aspect – fastest execution, best matching engine, most gas-efficient implementation – accelerating the rate of innovation and pushing the market to deliver the absolute best user experience.
+1. By decoupling the order book from any single exchange, Bridgeless *flips the order flow* – rather than forcing users to select a single DEX or even single DEX aggregator to "own" their order, users can broadcast their order and make aggregators compete to fill it! Driving aggregator competition to its maximum forces aggregators to compete in every aspect – fastest execution, best matching engine, most gas-efficient implementation – accelerating the rate of innovation and pushing the market to deliver the absolute best user experience.
 
-Since orders are simply digital signatures rather than transactions, order creation can be totally free. Splitting order creation and execution means order execution can be performed by the party *fulfilling* an order, rather than the user placing it. This means that *users never have to pay gas fees*, and in particular, costs for failed transactions are never borne by users, but instead only by aggregators.
+2. Since orders are simply digital signatures rather than transactions, *order creation is totally free*.
 
-Bridgeless's powerful, composable orders can be combined into arbitrarily complex “programmable” order chains and order trees, enabling the construction of entire trading strategies through order composition. This empowers innovative new types of services, which can aide users in constructing sets of orders for bespoke trading logic.
+3. Splitting order creation and execution means order execution can be performed by the party fulfilling an order, rather than the user placing it. This means that *users never have to pay gas fees*, and in particular, that *costs for failed transactions are never borne by users*, but instead only by aggregators.
+
+4. Bridgeless's powerful, composable orders can be combined into arbitrarily complex “programmable” order chains and order trees, enabling the construction of entire trading strategies through order composition. This empowers innovative new types of services, which can aide users in constructing sets of orders for bespoke trading logic.
 
 Bridgeless currently supports orders on any EVM-compatible blockchain, from any ERC20 token to either another ERC20 token or the native token of the chain.
 
