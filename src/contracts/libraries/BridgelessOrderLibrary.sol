@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../BridgelessStructs.sol";
 
-// import "forge-std/Test.sol";
+import "forge-std/Test.sol";
 
 abstract contract BridgelessOrderLibrary is
     BridgelessStructs
@@ -61,18 +61,20 @@ abstract contract BridgelessOrderLibrary is
      * abi.encodePacked(additional args): for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
      */
     function packOptionalParameters(
-        bool usingOTC,
+        bool usingExecutor,
         bool usingNonce,
+        bool usingValidAfter,
         address executor,
-        uint256 nonce
+        uint256 nonce,
+        uint32 validAfter
     ) public pure returns (bytes memory optionalParameters)
     {
         // add a single bit at the front, used for flags
         optionalParameters = abi.encodePacked(bytes1(0));
-        if (usingOTC) {
-            // concatenate the `executor` address in a 32-byte slot
+        if (usingExecutor) {
+            // concatenate the `executor` address in a 20-byte slot
             optionalParameters = abi.encodePacked(optionalParameters, executor);
-            // OTC flag is first bit being 1 -- set this bit!
+            // executor flag is first bit being 1 -- set this bit!
             assembly {
                 mstore(
                     add(optionalParameters, 32),
@@ -91,6 +93,17 @@ abstract contract BridgelessOrderLibrary is
                 )
             }
         }
+        if (usingValidAfter) {
+            // concatenate the `nonce` value in a 4-byte slot
+            optionalParameters = abi.encodePacked(optionalParameters, validAfter);
+            // validAfter flag is third bit being 1 -- set this bit!
+            assembly {
+                mstore(
+                    add(optionalParameters, 32),
+                    or(mload(add(optionalParameters, 32)), 0x4000000000000000000000000000000000000000000000000000000000000000)
+                )
+            }
+        }
         return optionalParameters;
     }
 
@@ -99,12 +112,15 @@ abstract contract BridgelessOrderLibrary is
      * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
      * bytes32[numberOfPositiveFlags]: for each flag that is a '1', 32 bytes of additional calldata should be attached, encoding information relevant to that flag
      */
-    function unpackOptionalParameters(bytes memory optionalParameters) public pure returns (bool usingOTC, bool usingNonce, address executor, uint256 nonce) {
+    function unpackOptionalParameters(
+        bytes memory optionalParameters
+    )
+        public pure returns (bool usingExecutor, bool usingNonce, bool usingValidAfter, address executor, uint256 nonce, uint32 validAfter) {
         // account for the 32 bytes of data that encode length
         uint256 additionalOffset = 32;
         assembly {
-            // OTC flag is first bit being 1
-            usingOTC := eq(
+            // Executor flag is first bit being 1
+            usingExecutor := eq(
                 and(
                     mload(add(optionalParameters, additionalOffset)),
                     0x1000000000000000000000000000000000000000000000000000000000000000
@@ -119,11 +135,20 @@ abstract contract BridgelessOrderLibrary is
                 ),
                     0x2000000000000000000000000000000000000000000000000000000000000000
             )
-                // add to additionalOffset to account for the 1 byte of data that was read
-                additionalOffset := add(additionalOffset, 1)
+            // validAfter flag is third bit being 1 -- check for this flag
+            usingValidAfter := eq(
+                and(
+                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
+                    mload(add(optionalParameters, additionalOffset)),
+                    0x4000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x4000000000000000000000000000000000000000000000000000000000000000
+            )
+            // add to additionalOffset to account for the 1 byte of data that was read
+            additionalOffset := add(additionalOffset, 1)
         }
-        // run OTC check if necessary
-        if (usingOTC) {
+        // run Executor check if flag was set
+        if (usingExecutor) {
             assembly {
                 // read executor address -- address is 160 bits so we right-shift by (256-160) = 96
                 executor := shr(96,
@@ -133,12 +158,23 @@ abstract contract BridgelessOrderLibrary is
                 additionalOffset := add(additionalOffset, 20)                    
             }          
         }
-        // run nonce check if necessary
+        // run nonce check if flag was set
         if (usingNonce) {
             assembly {
                 nonce := mload(add(optionalParameters, additionalOffset))
                 // add to additionalOffset to account for the 32 bytes of data that was read
                 additionalOffset := add(additionalOffset, 32)
+            }
+        }
+        // run validAfter check if flag was set
+        if (usingValidAfter) {
+            assembly {
+                // read validAfter timestamp -- timestamp is enocoded as 32 bits so we right-shift by (256-32) = 224
+                validAfter := shr(224,
+                    mload(add(optionalParameters, additionalOffset))
+                )
+                // add to additionalOffset to account for the 4 bytes of data that was read
+                additionalOffset := add(additionalOffset, 4)                    
             }
         }
     }

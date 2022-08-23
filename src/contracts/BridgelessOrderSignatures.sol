@@ -61,32 +61,22 @@ abstract contract BridgelessOrderSignatures is
         if (optionalParameters.length == 0) {
             return;
         }
-        bool usingOTC;
-        bool usingNonce;
-        // account for the 32 bytes of data that encode length
-        uint256 additionalOffset = 32;
+        bool flag;
+        // executor flag is first bit being 1 -- check for this flag
         assembly {
-            // OTC flag is first bit being 1
-            usingOTC := eq(
+            flag := eq(
                 and(
-                    mload(add(optionalParameters, additionalOffset)),
+                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
+                    mload(add(optionalParameters, 32)),
                     0x1000000000000000000000000000000000000000000000000000000000000000
                 ),
                     0x1000000000000000000000000000000000000000000000000000000000000000
             )
-            // nonce flag is second bit being 1
-            usingNonce := eq(
-                and(
-                    mload(add(optionalParameters, additionalOffset)),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
-                ),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
-            )
-                // add to additionalOffset to account for the 1 byte of data that was read
-                additionalOffset := add(additionalOffset, 1)
         }
-        // run OTC check if necessary
-        if (usingOTC) {
+        // account for the 32 bytes of data that encode length and the 1 byte that has already been read
+        uint256 additionalOffset = 33;
+        // run executor check if flag was set
+        if (flag) {
             address executor;
             assembly {
                 // read executor address -- address is 160 bits so we right-shift by (256-160) = 96
@@ -99,10 +89,21 @@ abstract contract BridgelessOrderSignatures is
             require(
                 executor == msg.sender,
                 "Bridgeless._checkOptionalParameters: executor != msg.sender"
-            );            
+            );
         }
-        // run nonce check if necessary
-        if (usingNonce) {
+        // nonce flag is second bit being 1 -- check for this flag
+        assembly {
+            flag := eq(
+                and(
+                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
+                    mload(add(optionalParameters, 32)),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x2000000000000000000000000000000000000000000000000000000000000000
+            )
+        }
+        // run nonce check if flag was set
+        if (flag) {
             uint256 nonce;
             assembly {
                 nonce := mload(add(optionalParameters, additionalOffset))
@@ -115,6 +116,33 @@ abstract contract BridgelessOrderSignatures is
             }
             // mark nonce as spent
             nonceIsSpent[signer][nonce] = true;
+        }
+        // validAfter flag is third bit being 1 -- check for this flag
+        assembly {
+            flag := eq(
+                and(
+                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
+                    mload(add(optionalParameters, 32)),
+                    0x4000000000000000000000000000000000000000000000000000000000000000
+                ),
+                    0x4000000000000000000000000000000000000000000000000000000000000000
+            )
+        }
+        // run validAfter check if flag was set
+        if (flag) {
+            uint32 validAfter;
+            assembly {
+                // read validAfter timestamp -- timestamp is enocoded as 32 bits so we right-shift by (256-32) = 224
+                validAfter := shr(224,
+                    mload(add(optionalParameters, additionalOffset))
+                )
+                // add to additionalOffset to account for the 4 bytes of data that was read
+                additionalOffset := add(additionalOffset, 4)                    
+            }
+            require(
+                block.timestamp > validAfter,
+                "Bridgeless._checkOptionalParameters: block.timestamp <= validAfter"
+            );
         }
         return;
     }
