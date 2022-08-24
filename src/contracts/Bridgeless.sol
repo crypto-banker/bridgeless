@@ -18,25 +18,6 @@ contract Bridgeless is
     // Vm cheats = Vm(HEVM_ADDRESS);
     using SafeERC20 for IERC20;
 
-    // verify that the `tokenOwner` receives *at least* `amountOutMin in `tokenOut` from the swap
-    modifier checkOrderFulfillment(
-        address tokenOwner,
-        address tokenOut,
-        uint256 amountOutMin
-    ) {
-        // get the `tokenOwner`'s balance of the `tokenOut`, *prior* to running the function
-        uint256 ownerBalanceBefore = _getUserBalance(tokenOwner, tokenOut);
-        
-        // run the function
-        _;
-
-        // verify that the `tokenOwner` received *at least* `amountOutMin` in `tokenOut` *after* function has run
-        require(
-            _getUserBalance(tokenOwner, tokenOut) - ownerBalanceBefore >= amountOutMin,
-            "Bridgeless.checkOrderFulfillment: amountOutMin not met!"
-        );
-    }
-
     // Check an order deadline. Orders must be executed at or before the UTC timestamp specified by their `deadline`.
     modifier checkOrderDeadline(uint256 deadline) {
         require(
@@ -69,15 +50,15 @@ contract Bridgeless is
         public virtual
         // @dev Modifier to verify that order is still valid
         checkOrderDeadline(order.deadline)
-        // @dev Modifier to verify correct order execution
-        checkOrderFulfillment(order.signer, order.tokenOut, order.amountOutMin)
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // @dev Verify that `order.signer` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
+        // @dev Verify that `order.signer` did indeed sign `order`, then mark the order nonce as spent
         _processOrderSignature(order, signature);
         // @dev check the optional order parameters
         processOptionalParameters(order.optionalParameters);
+        // get the `order.signer`'s balance of the `order.tokenOut`, *prior* to transferring tokens
+        uint256 ownerBalanceBefore = _getUserBalance(order.signer, order.tokenOut);
         // @dev Optimisically transfer the tokens from `order.signer` to `swapper`
         IERC20(order.tokenIn).safeTransferFrom(order.signer, address(swapper), order.amountIn);
 
@@ -87,6 +68,12 @@ contract Bridgeless is
          * @notice After execution of `swapper` completes, control is handed back to this contract and order fulfillment is verified.
          */
         swapper.bridgelessCall(order, extraCalldata);
+
+        // verify that the `order.signer` received *at least* `amountOutMin` in `order.tokenOut` *after* `swapper` execution has completed
+        require(
+            _getUserBalance(order.signer, order.tokenOut) - ownerBalanceBefore >= order.amountOutMin,
+            "Bridgeless.fulfillOrder: amountOutMin not met!"
+        );
     }
 
     /**
@@ -123,7 +110,7 @@ contract Bridgeless is
             );
         }
 
-        // @dev Verify that the `orders` are all still valid.
+        // @dev Verify that the `orders` are all still valid and mark their nonces as spent.
         {
             for (uint256 i; i < ordersLength;) {
                 _checkOrderDeadline(orders[i].deadline);
