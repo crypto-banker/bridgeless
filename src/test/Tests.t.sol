@@ -169,7 +169,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, false, address(multicall), _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(true, false, false, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -178,7 +178,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(false, true, address(multicall), _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(false, true, false, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -188,7 +188,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(true, true, false, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -519,6 +519,7 @@ contract Tests is
     function testPackUnpackOptionalParameters(
         bool _usingExecutor,
         bool _usingValidAfter,
+        bool _usingPartialFill,
         address executor_,
         uint32 validAfter_
     )
@@ -526,20 +527,21 @@ contract Tests is
     {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(_usingExecutor, _usingValidAfter, executor_, validAfter_);
-        (bool usingExecutor, bool usingValidAfter, address executor, uint32 validAfter) = 
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(_usingExecutor, _usingValidAfter, _usingPartialFill, executor_, validAfter_);
+        (bool usingExecutor, bool usingValidAfter, bool usingPartialFill, address executor, uint32 validAfter) = 
             bridgeless.unpackOptionalParameters(optionalParameters);
         assertTrue(usingExecutor == _usingExecutor, "usingExecutor != _usingExecutor");
         assertTrue(usingValidAfter == _usingValidAfter, "usingValidAfter != _usingValidAfter");
+        assertTrue(usingPartialFill == _usingPartialFill, "usingPartialFill != _usingPartialFill");
         if (_usingExecutor) {
-            assertEq(executor, executor_);            
+            assertEq(executor_, executor);            
         } else {
-            assertEq(executor, address(0));            
+            assertEq(address(0), executor);            
         }
         if (_usingValidAfter) {
-            assertEq(validAfter, validAfter_);            
+            assertEq(validAfter_, validAfter);            
         } else {
-            assertEq(validAfter, uint32(0));            
+            assertEq(uint32(0), validAfter);            
         }
     }
 
@@ -547,7 +549,7 @@ contract Tests is
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
         cheats.warp(_validAfter + 1);
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(this), _validAfter);
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, true, address(this), _validAfter);
         bridgeless.processOptionalParameters(optionalParameters);
     }
 }

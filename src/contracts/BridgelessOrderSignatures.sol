@@ -58,12 +58,13 @@ abstract contract BridgelessOrderSignatures is
      * @param optionalParameters A set of flags and 
      * @dev The `optionalParameters` format is:
      * (optional) bytes1: 8-bit map of flags to indicate presence of optional parameters -- do not need to include (but can include) for "simple" orders
-     * bytes: for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
+     * abi.encodePacked(additional args): for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
+     * @ return Whether or not the `partialFill` flag is set
      */
-    function processOptionalParameters(bytes memory optionalParameters) public view {
+    function processOptionalParameters(bytes memory optionalParameters) public view returns (bool) {
         // no optionalParams -- do nothing and return early
         if (optionalParameters.length == 0) {
-            return;
+            return false;
         }
         bool flag;
         // executor flag is first bit being 1 -- check for this flag
@@ -72,9 +73,9 @@ abstract contract BridgelessOrderSignatures is
                 and(
                     // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
                     mload(add(optionalParameters, 32)),
-                    0x1000000000000000000000000000000000000000000000000000000000000000
+                    FIRST_BIT_MASK
                 ),
-                    0x1000000000000000000000000000000000000000000000000000000000000000
+                    FIRST_BIT_MASK
             )
         }
         // account for the 32 bytes of data that encode length and the 1 byte that has already been read
@@ -101,9 +102,9 @@ abstract contract BridgelessOrderSignatures is
                 and(
                     // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
                     mload(add(optionalParameters, 32)),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
+                    SECOND_BIT_MASK
                 ),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
+                    SECOND_BIT_MASK
             )
         }
         // run validAfter check if flag was set
@@ -122,6 +123,17 @@ abstract contract BridgelessOrderSignatures is
                 "Bridgeless._checkOptionalParameters: block.timestamp <= validAfter"
             );
         }
-        return;
+        // partialFill flag is third bit being 1 -- check for this flag
+        assembly {
+            flag := eq(
+                and(
+                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
+                    mload(add(optionalParameters, 32)),
+                    THIRD_BIT_MASK
+                ),
+                    THIRD_BIT_MASK
+            )
+        }
+        return flag;
     }
 }
