@@ -33,10 +33,11 @@ Orders follow a *single standard* with optional flags and parameters to enhance 
 
 The base of an order is an offer to trade `X` of `token A` for `Y` of `token B`, at or before the order's `deadline`.
 
+Each order also has a specified `nonce`. For each signer, a maximum of one order with a given `nonce` value can ever be executed; this allows users to create mutually-exclusive orders that share a nonce, such as a set of limit orders to trade the same fixed block of tokens at various prices, where as soon as one order in the set is executed, the others automatically become invalid.
+
 Optional Parameters currently supported are:
 
 * **Order Executor** – specify an address that is allowed to execute your order. This can be your counterparty in an OTC trade, or a specific aggregator network that you trust to pay you referral fees, share trading revenue with you, etc.
-* **Order Nonce Set** – create a set of orders, where at most one order in the nonce set can ever be executed. Create mutually-exclusive orders such as a set of limit orders to trade the same fixed block of tokens against various other tokens, at different prices.
 * **Order Delay** – sign an order now that only becomes valid in the future. Combine with **nonce set** functionality to make *conditional orders*, e.g. a limit order that becomes valid only if your other order has not already been fulfilled an hour from now.
 
 Even more features coming soon.
