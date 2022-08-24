@@ -17,8 +17,6 @@ abstract contract BridgelessOrderSignatures is
     // signer => nonce => whether or not the nonce has been spent already
     mapping(address => mapping(uint256 => bool)) public nonceIsSpent;
 
-    mapping(bytes32 => bool) public orderHashIsSpent;
-
     // set immutable variables
     constructor()
     {
@@ -32,31 +30,25 @@ abstract contract BridgelessOrderSignatures is
     function _processOrderSignature(BridgelessOrder calldata order, Signature calldata signature) internal {
         // calculate the orderHash and mark it as spent
         bytes32 orderHash = calculateBridgelessOrderHash(order);
-        _markOrderHashAsSpent(orderHash);
         // verify the order signature
         _checkOrderSignature(order.signer, orderHash, signature);
-    }
-
-    function _markOrderHashAsSpent(bytes32 orderHash) internal {
-        // verify that the orderHash has not already been spent
-        require(
-            !orderHashIsSpent[orderHash],
-            "Bridgeless._markOrderHashAsSpent: orderHash has already been spent"
-        );
-        // mark orderHash as spent
-        orderHashIsSpent[orderHash] = true;
+        // check nonce validity
+        if (nonceIsSpent[order.signer][order.nonce]) {
+            revert("Bridgeless._processOrderSignature: nonce is already spent");
+        }
+        // mark nonce as spent
+        nonceIsSpent[order.signer][order.nonce] = true;
     }
 
     /**
      * @notice Looks at the provided flags in `optionalParameters`, then processes each included optional parameter
-     * @dev Currentlyt there are two flags, `usingOTC` and `usingNonce`
-     * @param signer The user whose order is being processed. Used in nonce processing.
+     * @dev Currently there are two flags, `usingExecutor` and `usingValidAfter`
      * @param optionalParameters A set of flags and 
      * @dev The `optionalParameters` format is:
      * (optional) bytes1: 8-bit map of flags to indicate presence of optional parameters -- do not need to include (but can include) for "simple" orders
-     * bytes : for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
+     * bytes: for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
      */
-    function processOptionalParameters(address signer, bytes memory optionalParameters) public {
+    function processOptionalParameters(bytes memory optionalParameters) public view {
         // no optionalParams -- do nothing and return early
         if (optionalParameters.length == 0) {
             return;
@@ -91,7 +83,7 @@ abstract contract BridgelessOrderSignatures is
                 "Bridgeless._checkOptionalParameters: executor != msg.sender"
             );
         }
-        // nonce flag is second bit being 1 -- check for this flag
+        // validAfter flag is second bit being 1 -- check for this flag
         assembly {
             flag := eq(
                 and(
@@ -100,32 +92,6 @@ abstract contract BridgelessOrderSignatures is
                     0x2000000000000000000000000000000000000000000000000000000000000000
                 ),
                     0x2000000000000000000000000000000000000000000000000000000000000000
-            )
-        }
-        // run nonce check if flag was set
-        if (flag) {
-            uint256 nonce;
-            assembly {
-                nonce := mload(add(optionalParameters, additionalOffset))
-                // add to additionalOffset to account for the 32 bytes of data that was read
-                additionalOffset := add(additionalOffset, 32)
-            }
-            // check nonce validity
-            if (nonceIsSpent[signer][nonce]) {
-                revert("Bridgeless._checkOptionalParameters: nonce is already spent");
-            }
-            // mark nonce as spent
-            nonceIsSpent[signer][nonce] = true;
-        }
-        // validAfter flag is third bit being 1 -- check for this flag
-        assembly {
-            flag := eq(
-                and(
-                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
-                    mload(add(optionalParameters, 32)),
-                    0x4000000000000000000000000000000000000000000000000000000000000000
-                ),
-                    0x4000000000000000000000000000000000000000000000000000000000000000
             )
         }
         // run validAfter check if flag was set

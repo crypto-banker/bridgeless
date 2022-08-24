@@ -77,7 +77,7 @@ contract Bridgeless is
         // @dev Verify that `order.signer` did indeed sign `order` and that it is still valid, then mark the orderHash as spent
         _processOrderSignature(order, signature);
         // @dev check the optional order parameters
-        processOptionalParameters(order.signer, order.optionalParameters);
+        processOptionalParameters(order.optionalParameters);
         // @dev Optimisically transfer the tokens from `order.signer` to `swapper`
         IERC20(order.tokenIn).safeTransferFrom(order.signer, address(swapper), order.amountIn);
 
@@ -146,7 +146,7 @@ contract Bridgeless is
         // @dev check the optional order parameters
         {
             for (uint256 i; i < ordersLength;) {
-                processOptionalParameters(orders[i].signer, orders[i].optionalParameters);
+                processOptionalParameters(orders[i].optionalParameters);
                 unchecked {
                     ++i;
                 }

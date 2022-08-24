@@ -15,6 +15,8 @@ interface BridgelessStructs {
         uint256 amountOutMin;
         // signature expiration
         uint256 deadline;
+        // order nonce – orders don't have to be executed in ascending nonce order, but each nonce may only be spent by a signer *once*
+        uint256 nonce;
         // flags and info for all optional parameters
         bytes optionalParameters;
     }

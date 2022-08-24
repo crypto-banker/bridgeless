@@ -104,31 +104,15 @@ contract Tests is
         // swap ERC20 to ERC20
         _testGaslessSwap_Executor(false);
         // swap ERC20 to native
-        _testGaslessSwap_Nonce(true);
-        // swap ERC20 to ERC20
-        _testGaslessSwap_Nonce(false);
-        // swap ERC20 to native
         _testGaslessSwap_ValidAfter(true);
         // swap ERC20 to ERC20
         _testGaslessSwap_ValidAfter(false);
         // swap ERC20 to native
-        _testGaslessSwap_Executor_Nonce(true);
-        // swap ERC20 to ERC20
-        _testGaslessSwap_Executor_Nonce(false);
-        // swap ERC20 to native
         _testGaslessSwap_Executor_ValidAfter(true);
         // swap ERC20 to ERC20
         _testGaslessSwap_Executor_ValidAfter(false);
-        // swap ERC20 to native
-        _testGaslessSwap_Nonce_ValidAfter(true);
-        // swap ERC20 to ERC20
-        _testGaslessSwap_Nonce_ValidAfter(false);
-        // swap ERC20 to native
-        _testGaslessSwap_Executor_Nonce_ValidAfter(true);
-        // swap ERC20 to ERC20
-        _testGaslessSwap_Executor_Nonce_ValidAfter(false);
     }
-    
+
     function testFulfillMultipleOrdersMainnet(uint8 numberUsers) public {
         uint256 forkId = cheats.createFork("mainnet");
         cheats.selectFork(forkId);
@@ -188,16 +172,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, false, false, address(multicall), _nonce, _validAfter);
-        _doOrder(order);
-    }
-
-    function _testGaslessSwap_Nonce(bool swapForNative) internal {
-        _setUpSwapParameters(swapForNative);
-        // set up the order
-        BridgelessOrder memory order;
-        order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(false, true, false, address(multicall), _nonce, _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(true, false, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -206,16 +181,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, false, false, address(multicall), _nonce, _validAfter);
-        _doOrder(order);
-    }
-
-    function _testGaslessSwap_Executor_Nonce(bool swapForNative) internal {
-        _setUpSwapParameters(swapForNative);
-        // set up the order
-        BridgelessOrder memory order;
-        order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, true, false, address(multicall), _nonce, _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(false, true, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -225,25 +191,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, false, true, address(multicall), _nonce, _validAfter);
-        _doOrder(order);
-    }
-
-    function _testGaslessSwap_Nonce_ValidAfter(bool swapForNative) internal {
-        _setUpSwapParameters(swapForNative);
-        // set up the order
-        BridgelessOrder memory order;
-        order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(false, true, true, address(multicall), _nonce, _validAfter);
-        _doOrder(order);
-    }
-
-    function _testGaslessSwap_Executor_Nonce_ValidAfter(bool swapForNative) internal {
-        _setUpSwapParameters(swapForNative);
-        // set up the order
-        BridgelessOrder memory order;
-        order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, true, true, address(multicall), _nonce, _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -549,44 +497,37 @@ contract Tests is
         bridgelessSwapperUniswap = new BridgelessSwapperUniswap(ROUTER);
     }
 
-    function _makeOrder_Base(address _signer) internal view returns (BridgelessOrder memory orderBase) {
-        orderBase.signer = _signer;
-        orderBase.tokenIn = _tokenToSwap;
-        orderBase.amountIn = _amountIn;
-        orderBase.tokenOut = _tokenOut;
-        orderBase.amountOutMin = _amountOutMin;
-        orderBase.deadline = _deadline;
+    function _makeOrder_Base(address _signer) internal view returns (BridgelessOrder memory order) {
+        order.signer = _signer;
+        order.tokenIn = _tokenToSwap;
+        order.amountIn = _amountIn;
+        order.tokenOut = _tokenOut;
+        order.amountOutMin = _amountOutMin;
+        order.deadline = _deadline;
+        order.nonce = _nonce;
         bytes memory emptyBytes;
-        orderBase.optionalParameters = emptyBytes;
+        order.optionalParameters = emptyBytes;
     }
 
     function testPackUnpackOptionalParameters(
         bool _usingExecutor,
-        bool _usingNonce,
         bool _usingValidAfter,
         address executor_,
-        uint256 nonce_,
         uint32 validAfter_
     )
         public
     {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(_usingExecutor, _usingNonce, _usingValidAfter, executor_, nonce_, validAfter_);
-        (bool usingExecutor, bool usingNonce, bool usingValidAfter, address executor, uint256 nonce, uint32 validAfter) = 
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(_usingExecutor, _usingValidAfter, executor_, validAfter_);
+        (bool usingExecutor, bool usingValidAfter, address executor, uint32 validAfter) = 
             bridgeless.unpackOptionalParameters(optionalParameters);
         assertTrue(usingExecutor == _usingExecutor, "usingExecutor != _usingExecutor");
-        assertTrue(usingNonce == _usingNonce, "usingNonce != _usingNonce");
         assertTrue(usingValidAfter == _usingValidAfter, "usingValidAfter != _usingValidAfter");
         if (_usingExecutor) {
             assertEq(executor, executor_);            
         } else {
             assertEq(executor, address(0));            
-        }
-        if (_usingNonce) {
-            assertEq(nonce, nonce_);            
-        } else {
-            assertEq(nonce, uint256(0));            
         }
         if (_usingValidAfter) {
             assertEq(validAfter, validAfter_);            
@@ -598,10 +539,9 @@ contract Tests is
     function testProcessOptionalParameters() public {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
-        // signer input shouldn't matter here
-        address _signer = user;
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, true, address(this), _nonce, _validAfter);
-        bridgeless.processOptionalParameters(_signer, optionalParameters);
+        cheats.warp(_validAfter + 1);
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(this), _validAfter);
+        bridgeless.processOptionalParameters(optionalParameters);
     }
 }
 
