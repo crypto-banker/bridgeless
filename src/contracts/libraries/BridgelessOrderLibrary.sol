@@ -45,6 +45,30 @@ abstract contract BridgelessOrderLibrary is
         );
     }
 
+    function calculateBridgelessOrderHash_PartialFill(
+        BridgelessOrder calldata order,
+        uint256 tokensTransferredOut,
+        uint256 tokensObtained
+    )
+        public pure returns (bytes32)
+    {
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH,
+                    order.signer,
+                    order.tokenIn,
+                    order.amountIn - tokensTransferredOut,
+                    order.tokenOut,
+                    order.amountOutMin - tokensObtained,
+                    order.deadline,
+                    order.nonce,
+                    order.optionalParameters
+                )
+            )
+        );
+    }
+
     /**
      * @dev The `optionalParameters` format is:
      * (optional) bytes1: 8-bit map of flags to indicate presence of optional parameters -- do not need to include (but can include) for "simple" orders

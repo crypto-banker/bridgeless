@@ -18,6 +18,10 @@ contract Bridgeless is
     // Vm cheats = Vm(HEVM_ADDRESS);
     using SafeERC20 for IERC20;
 
+    // TODO: upgrade this to a single BitMap
+    // orderHash => whether or not the partialFill order corresponding to the orderHash is 'active' or not
+    mapping(bytes32 => bool) public partialFillOrderActive;
+
     // Check an order deadline. Orders must be executed at or before the UTC timestamp specified by their `deadline`.
     modifier checkOrderDeadline(uint256 deadline) {
         require(
@@ -26,6 +30,8 @@ contract Bridgeless is
         );
         _;
     }
+
+    event PartialFillStorageCreated(bytes32 indexed newOrderHash, BridgelessOrder indexed order, uint256 tokensTransferredOut, uint256 tokensObtained);
 
     /**
      * @notice Fulfills a single `BridgelessOrder`, swapping `order.amountIn` of the ERC20 token `order.tokenIn` for
@@ -56,9 +62,13 @@ contract Bridgeless is
         // @dev Verify that `order.signer` did indeed sign `order`, then mark the order nonce as spent
         _processOrderSignature(order, signature);
         // @dev check the optional order parameters
-        processOptionalParameters(order.optionalParameters);
+        bool partialFill = processOptionalParameters(order.optionalParameters);
         // get the `order.signer`'s balance of the `order.tokenOut`, *prior* to transferring tokens
-        uint256 ownerBalanceBefore = _getUserBalance(order.signer, order.tokenOut);
+        uint256 tokenOutBalanceBefore = _getUserBalance(order.signer, order.tokenOut);
+        uint256 tokenInBalanceBefore;
+        if (partialFill) {
+            tokenInBalanceBefore = _getUserBalance(order.signer, order.tokenIn);
+        }
         // @dev Optimisically transfer the tokens from `order.signer` to `swapper`
         IERC20(order.tokenIn).safeTransferFrom(order.signer, address(swapper), order.amountIn);
 
@@ -69,11 +79,37 @@ contract Bridgeless is
          */
         swapper.bridgelessCall(order, extraCalldata);
 
-        // verify that the `order.signer` received *at least* `amountOutMin` in `order.tokenOut` *after* `swapper` execution has completed
-        require(
-            _getUserBalance(order.signer, order.tokenOut) - ownerBalanceBefore >= order.amountOutMin,
-            "Bridgeless.fulfillOrder: amountOutMin not met!"
-        );
+        if (!partialFill) {
+            // verify that the `order.signer` received *at least* `amountOutMin` in `order.tokenOut` *after* `swapper` execution has completed
+            require(
+                _getUserBalance(order.signer, order.tokenOut) - tokenOutBalanceBefore >= order.amountOutMin,
+                "Bridgeless.fulfillOrder: amountOutMin not met!"
+            );
+        } else {
+            uint256 tokensObtained = _getUserBalance(order.signer, order.tokenOut) - tokenOutBalanceBefore;
+            // i.e. if order was indeed only partially filled
+            if (tokensObtained < order.amountOutMin) {
+                uint256 tokensTransferredOut = tokenInBalanceBefore - _getUserBalance(order.signer, order.tokenIn);
+                /**
+                 * ensure that the `order.signer` got *at least* the swap ratio specified in their order
+                 * i.e. we want to check that (tokensObtained / tokensTransferredOut) >= (order.amountOutMin / order.amountIn)
+                 * but this is equivalent to checking that (tokensObtained * order.amountIn) / (tokensTransferredOut * order.amountOutMin) >= 1
+                 */
+                require(
+                    (tokensObtained * order.amountIn) / (tokensTransferredOut * order.amountOutMin) >= 1,
+                    "Bridgeless.fulfillOrder: partialFillOrder swap ratio not met!"
+                );
+                _createPartialFillStorage(order, tokensTransferredOut, tokensObtained);
+            }
+        }
+    }
+
+    function _createPartialFillStorage(BridgelessOrder calldata order, uint256 tokensTransferredOut, uint256 tokensObtained) internal {
+        // set the storage slot
+        bytes32 newOrderHash = calculateBridgelessOrderHash_PartialFill(order, tokensTransferredOut, tokensObtained);
+        partialFillOrderActive[newOrderHash] = true;
+        // emit an event
+        emit PartialFillStorageCreated(newOrderHash, order, tokensTransferredOut, tokensObtained);
     }
 
     /**
