@@ -28,4 +28,8 @@ interface BridgelessStructs {
         bytes32 s;
     }
 
+    struct PackedSignature {
+        bytes32 r;
+        bytes32 vs;
+    }
 }

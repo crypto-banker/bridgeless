@@ -30,7 +30,7 @@ abstract contract BridgelessOrderSignatures is
         );
     }
 
-    function _processOrderSignature(BridgelessOrder calldata order, Signature calldata signature) internal {
+    function _processOrderSignature(BridgelessOrder calldata order, PackedSignature calldata signature) internal {
         // calculate the orderHash and mark it as spent
         bytes32 orderHash = calculateBridgelessOrderHash(order);
         // verify the order signature

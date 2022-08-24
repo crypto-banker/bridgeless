@@ -135,13 +135,12 @@ abstract contract BridgelessOrderLibrary is
         }
     }
 
-    function _checkOrderSignature(address signer, bytes32 orderHash, Signature calldata signature) internal pure {
+    function _checkOrderSignature(address signer, bytes32 orderHash, PackedSignature calldata signature) internal pure {
         require(
             signer == ECDSA.recover(
                 orderHash,
-                signature.v,
                 signature.r,
-                signature.s
+                signature.vs
             ),
             "Bridgeless._checkOrderSignature: signer != recoveredAddress"
         );

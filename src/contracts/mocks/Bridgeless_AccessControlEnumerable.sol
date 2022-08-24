@@ -19,7 +19,7 @@ contract Bridgeless_AccessControlEnumerable is
     function fulfillOrder(
         IBridgelessCallee swapper,
         BridgelessOrder calldata order,
-        Signature calldata signature,
+        PackedSignature calldata signature,
         bytes calldata extraCalldata
     )   
         public override
@@ -43,7 +43,7 @@ contract Bridgeless_AccessControlEnumerable is
     function fulfillOrders(
         IBridgelessCallee swapper,
         BridgelessOrder[] calldata orders,
-        Signature[] calldata signatures,
+        PackedSignature[] calldata signatures,
         bytes calldata extraCalldata
     )
         public override

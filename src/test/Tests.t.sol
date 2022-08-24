@@ -39,9 +39,6 @@ contract Tests is
     // address that already has permit token balance, for forked testing
     address addressToSendTokenFrom;
     bytes32 orderHash;
-    uint8 v;
-    bytes32 r;
-    bytes32 s;
 
     uint256 _nonce = 1559;
     uint32 _validAfter = 111;
@@ -147,7 +144,7 @@ contract Tests is
         // get the order hash
         orderHash = bridgeless.calculateBridgelessOrderHash(order);
         // get the order signature
-        Signature memory orderSignature = _getSignature(user_priv_key, orderHash);
+        PackedSignature memory orderSignature = _getPackedSignature(user_priv_key, orderHash);
         // set up the `Bridgeless.fulfillOrder` call
         callsForMulticall[1].target = address(bridgeless);
         bytes memory emptyBytes;
@@ -204,7 +201,7 @@ contract Tests is
 
         // initialize memory structs
         BridgelessOrder[] memory orders = new BridgelessOrder[](numberUsers);
-        Signature[] memory orderSignatures = new Signature[](numberUsers);
+        PackedSignature[] memory orderSignatures = new PackedSignature[](numberUsers);
         Signature[] memory permitSignatures = new Signature[](numberUsers);
         // set up calls for approvals + swap at end
         Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](numberUsers + 1);
@@ -227,7 +224,7 @@ contract Tests is
             // get the order hash
             orderHash = bridgeless.calculateBridgelessOrderHash(orders[i]);
             // get order signature
-            orderSignatures[i] = _getSignature(user_priv_keys[i], orderHash);
+            orderSignatures[i] = _getPackedSignature(user_priv_keys[i], orderHash);
 
             // send tokens to the user from existing whale address, purely for testing
             cheats.startPrank(addressToSendTokenFrom);
@@ -448,6 +445,16 @@ contract Tests is
         (signature.v, signature.r, signature.s) = cheats.sign(privateKey, dataToSign);        
     }
 
+    function _getPackedSignature(uint256 privateKey, bytes32 dataToSign) internal returns (PackedSignature memory signature) {
+        // get signature
+        (uint8 v, bytes32 r, bytes32 s) = cheats.sign(privateKey, dataToSign);
+        // pack v and s together
+        bytes32 vs = bytes32(uint256(bytes32(uint256(v) - 27)<<255) | uint256(s));
+        // copy r + vs to struct
+        signature.r = r;
+        signature.vs = vs;
+    }
+
     // note that this POC uses the `permit` standard defined in EIP2612, but Bridgeless itself is ultimately agnostic to the signed approval format
     function _formatPermitCall(address user, BridgelessOrder memory order, Signature memory permitSignature) internal view returns (bytes memory callData) {
         callData = abi.encodeWithSelector(
@@ -468,7 +475,7 @@ contract Tests is
     // currently use an `emptyBytes` arg for `extraCalldata`
     function _formatFulfillOrderCall(
         BridgelessOrder memory order,
-        Signature memory orderSignature,
+        PackedSignature memory orderSignature,
         bytes memory extraCalldata
     )
         internal view returns (bytes memory callData)

@@ -53,8 +53,8 @@ contract Bridgeless is
      * @notice This function assumes that `permit` has already been called, or allowance has elsewise been provided from `order.signer` to this contract!
      * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCall(order, extraCalldata)`.
      * @param order A valid `BridgelessOrder` created by `order.signer`, specifying their desired order parameters.
-     * @param signature A valid ECDSA signature of `order` provided by `order.signer`. This signature is verified
-     *        by checking against `calculateBridgelessOrderHash(order)`
+     * @param signature A valid ECDSA signature, of `order` provided by `order.signer`. This signature is verified
+     *        by checking against `calculateBridgelessOrderHash(order)`. Signatures should be packed into 64 byte format (r, vs), rather than (v, r, s) format
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
      * @dev This function assumes that allowance of at least `order.amountIn` of `order.tokenIn` has already been provided
      *       by `order.signer` to **this contract**.
@@ -63,7 +63,7 @@ contract Bridgeless is
     function fulfillOrder(
         IBridgelessCallee swapper,
         BridgelessOrder calldata order,
-        Signature calldata signature,
+        PackedSignature calldata signature,
         bytes calldata extraCalldata
     )   
         public virtual
@@ -97,7 +97,7 @@ contract Bridgeless is
      * @param swapper The `IBridgelessCallee`-type contract to be the recipient of a call to `swapper.bridgelessCalls(orders, extraCalldata)`
      * @param orders A valid set of `BridgelessOrder`s created by `order.signer`s, specifying their desired order parameters.
      * @param signatures A valid set of ECDSA signatures of `orders` provided by `order.signer`s. These signature are verified
-     *        by checking against `calculateBridgelessOrderHash(orders[i])`
+     *        by checking against `calculateBridgelessOrderHash(orders[i])`. Signatures should be packed into 64 byte format (r, vs), rather than (v, r, s) format
      * @param extraCalldata "Optional" parameter that is simply passed onto `swapper` when it is called.
      * @dev This function assumes that allowance of at least `order.amountIn` of `order.tokenIn` has already been provided
      *       by `order.signer` to **this contract**.
@@ -106,7 +106,7 @@ contract Bridgeless is
     function fulfillOrders(
         IBridgelessCallee swapper,
         BridgelessOrder[] calldata orders,
-        Signature[] calldata signatures,
+        PackedSignature[] calldata signatures,
         bytes calldata extraCalldata
     )
         public virtual
