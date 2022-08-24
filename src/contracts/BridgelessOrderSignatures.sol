@@ -14,8 +14,12 @@ abstract contract BridgelessOrderSignatures is
     /// @notice EIP-712 Domain separator
     bytes32 public immutable DOMAIN_SEPARATOR;
 
-    // signer => nonce => whether or not the nonce has been spent already
-    mapping(address => mapping(uint256 => bool)) public nonceIsSpent;
+    /**
+     *  signer => nonce => whether or not the nonce has been spent already
+     *  Implementation of BitMaps in this contract is inspired by OpenZeppelin's and Uniswap's code.
+     *  Using bitmaps saves gas, since SSTOREs are cheaper once the slot is already nonzero!
+     */
+    mapping(address => mapping(uint256 => uint256)) public nonceBitmaps;
 
     // set immutable variables
     constructor()
@@ -24,7 +28,6 @@ abstract contract BridgelessOrderSignatures is
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(DOMAIN_TYPEHASH, bytes("Bridgeless"), block.chainid, address(this))
         );
-
     }
 
     function _processOrderSignature(BridgelessOrder calldata order, Signature calldata signature) internal {
@@ -33,11 +36,20 @@ abstract contract BridgelessOrderSignatures is
         // verify the order signature
         _checkOrderSignature(order.signer, orderHash, signature);
         // check nonce validity
-        if (nonceIsSpent[order.signer][order.nonce]) {
+        uint256 index = order.nonce >> 8;
+        uint256 mask = 1 << (order.nonce & 0xff);
+        // this means the nonce is already spent
+        if (nonceBitmaps[order.signer][index] & mask != 0) {
             revert("Bridgeless._processOrderSignature: nonce is already spent");
         }
         // mark nonce as spent
-        nonceIsSpent[order.signer][order.nonce] = true;
+        nonceBitmaps[order.signer][index] |= mask;
+    }
+
+    function nonceIsSpent(address signer, uint256 nonce) public view returns (bool) {
+        uint256 index = nonce >> 8;
+        uint256 mask = 1 << (nonce & 0xff);
+        return nonceBitmaps[signer][index] & mask != 0;
     }
 
     /**
