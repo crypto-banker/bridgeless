@@ -47,12 +47,11 @@ contract Tests is
     // nothing in the contracts actually enforces a max number, this is purely to decrease the computational cost of running all the tests.
     uint8 MAX_NUMBER_USERS = 8;
 
-    constructor() UsersAndSubmitter(MAX_NUMBER_USERS) {}
-
     function setUp() public {
         // we would deploy the Bridgeless contract here, but it doesn't work nicely like this with forking existing networks.
         // better to deploy after creating fork!
         // bridgeless = new Bridgeless();
+        setUpUsers(MAX_NUMBER_USERS);
     }
 
     function testGaslessSwapMainnet() public {
@@ -120,6 +119,12 @@ contract Tests is
         uint256 forkId = cheats.createFork("mainnet");
         cheats.selectFork(forkId);
         _testAggregatedGaslessSwap(3);
+    }
+
+    function testFulfillOneOrdersMainnet() public {
+        uint256 forkId = cheats.createFork("mainnet");
+        cheats.selectFork(forkId);
+        _testAggregatedGaslessSwap(1);
     }
 
     function _doOrder(BridgelessOrder memory order) internal {
@@ -198,20 +203,17 @@ contract Tests is
 
         _setUpSwapParameters(false);
         _deployContracts();
-
         // initialize memory structs
         BridgelessOrder[] memory orders = new BridgelessOrder[](numberUsers);
         PackedSignature[] memory orderSignatures = new PackedSignature[](numberUsers);
         Signature[] memory permitSignatures = new Signature[](numberUsers);
         // set up calls for approvals + swap at end
         Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](numberUsers + 1);
-
+        
         // set up the orders
         for (uint256 i; i < numberUsers; ++i) {
             // fill in order parameters
             orders[i] = _makeOrder_Base(users[i]);
-            // emit log_named_uint("i", i);
-            // emit log_named_bytes("i-th order", abi.encode(orders[i]));
 
             // get the permit hash
             bytes32 permitHash = _getPermitHash(users[i], orders[i]);
@@ -230,7 +232,6 @@ contract Tests is
             cheats.startPrank(addressToSendTokenFrom);
             IERC20(orders[i].tokenIn).transfer(users[i], _amountIn);
             cheats.stopPrank();
-
         }
 
         // set up the `Bridgeless.fulfillOrders` call
