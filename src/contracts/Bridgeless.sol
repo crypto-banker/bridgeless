@@ -18,9 +18,17 @@ contract Bridgeless is
     // Vm cheats = Vm(HEVM_ADDRESS);
     using SafeERC20 for IERC20;
 
-    // TODO: upgrade this to a single BitMap
-    // orderHash => whether or not the partialFill order corresponding to the orderHash is 'active' or not
-    mapping(bytes32 => bool) public partialFillOrderActive;
+    /**
+     *  BitMap for storing (orderHash => whether or not the partialFill order corresponding to the orderHash is 'active' or not).
+     *  A single BitMap entry can be read by using the `partialFillOrderIsActive(orderHash)` function
+     */
+    mapping(uint256 => uint256) public partialFillOrderActiveBitMap;
+
+    function partialFillOrderIsActive(bytes32 orderHash) public view returns (bool) {
+        uint256 index = uint256(orderHash) >> 8;
+        uint256 mask = 1 << (uint256(orderHash) & 0xff);
+        return partialFillOrderActiveBitMap[index] & mask != 0;
+    }
 
     // Check an order deadline. Orders must be executed at or before the UTC timestamp specified by their `deadline`.
     modifier checkOrderDeadline(uint256 deadline) {
@@ -118,12 +126,14 @@ contract Bridgeless is
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash(order);
         // check that the provided `order` is the preimage of an 'active', stored orderHash
+        uint256 index = uint256(orderHash) >> 8;
+        uint256 mask = 1 << (uint256(orderHash) & 0xff);
         require(
-            partialFillOrderActive[orderHash],
-            "Bridgeless.fulfillOrderFromStorage: !partialFillOrderActive[orderHash]"
+            (partialFillOrderActiveBitMap[index] & mask != 0),
+            "Bridgeless.fulfillOrderFromStorage: partialFillOrder not active at orderHash"
         );
         // mark the `orderHash` as no longer 'active'
-        partialFillOrderActive[orderHash] = false;
+        partialFillOrderActiveBitMap[index] = partialFillOrderActiveBitMap[index] & (~mask);
 
         // get the `order.signer`'s balance of the `order.tokenOut`, *prior* to transferring tokens
         uint256 tokenOutBalanceBefore = _getUserBalance(order.signer, order.tokenOut);
@@ -158,7 +168,9 @@ contract Bridgeless is
     function _createPartialFillStorage(BridgelessOrder calldata order, uint256 tokensTransferredOut, uint256 tokensObtained) internal {
         // set the storage slot
         bytes32 newOrderHash = calculateBridgelessOrderHash_PartialFill(order, tokensTransferredOut, tokensObtained);
-        partialFillOrderActive[newOrderHash] = true;
+        uint256 index = uint256(newOrderHash) >> 8;
+        uint256 mask = 1 << (uint256(newOrderHash) & 0xff);
+        partialFillOrderActiveBitMap[index] = (partialFillOrderActiveBitMap[index] | mask);
         // emit an event
         emit PartialFillStorageCreated(newOrderHash, order, tokensTransferredOut, tokensObtained);
     }

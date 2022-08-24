@@ -18,8 +18,15 @@ abstract contract BridgelessOrderSignatures is
      *  signer => nonce => whether or not the nonce has been spent already
      *  Implementation of BitMaps in this contract is inspired by OpenZeppelin's and Uniswap's code.
      *  Using bitmaps saves gas, since SSTOREs are cheaper once the slot is already nonzero!
+     *  A Single BitMap entry can be read by using the `nonceIsSpent(signer, nonce)` function.
      */
     mapping(address => mapping(uint256 => uint256)) public nonceBitmaps;
+
+    function nonceIsSpent(address signer, uint256 nonce) public view returns (bool) {
+        uint256 index = nonce >> 8;
+        uint256 mask = 1 << (nonce & 0xff);
+        return nonceBitmaps[signer][index] & mask != 0;
+    }
 
     // set immutable variables
     constructor()
@@ -31,7 +38,7 @@ abstract contract BridgelessOrderSignatures is
     }
 
     function _processOrderSignature(BridgelessOrder calldata order, PackedSignature calldata signature) internal {
-        // calculate the orderHash and mark it as spent
+        // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash(order);
         // verify the order signature
         _checkOrderSignature(order.signer, orderHash, signature);
@@ -43,13 +50,7 @@ abstract contract BridgelessOrderSignatures is
             revert("Bridgeless._processOrderSignature: nonce is already spent");
         }
         // mark nonce as spent
-        nonceBitmaps[order.signer][index] |= mask;
-    }
-
-    function nonceIsSpent(address signer, uint256 nonce) public view returns (bool) {
-        uint256 index = nonce >> 8;
-        uint256 mask = 1 << (nonce & 0xff);
-        return nonceBitmaps[signer][index] & mask != 0;
+        nonceBitmaps[order.signer][index] = (nonceBitmaps[order.signer][index] | mask);
     }
 
     /**
