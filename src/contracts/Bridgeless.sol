@@ -159,7 +159,7 @@ contract Bridgeless is
              */
             require(
                 (tokensObtained * order.amountIn) / (tokensTransferredOut * order.amountOutMin) >= 1,
-                "Bridgeless.fulfillOrder: partialFillOrder swap ratio not met!"
+                "Bridgeless.fulfillOrderFromStorage: partialFillOrder swap ratio not met!"
             );
             _createPartialFillStorage(order, tokensTransferredOut, tokensObtained);
         }
@@ -173,6 +173,88 @@ contract Bridgeless is
         partialFillOrderActiveBitMap[index] = (partialFillOrderActiveBitMap[index] | mask);
         // emit an event
         emit PartialFillStorageCreated(newOrderHash, order, tokensTransferredOut, tokensObtained);
+    }
+
+    function fulfillOrdersFromStorage(
+        IBridgelessCallee swapper,
+        BridgelessOrder[] calldata orders,
+        bytes calldata extraCalldata
+    )   
+        public virtual
+        // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
+        nonReentrant
+    {
+        // cache array length in memory
+        uint256 ordersLength = orders.length;
+        // @dev Verify that the `orders` are all still 'active' and then mark them as no longer active.
+        {
+            for (uint256 i; i < ordersLength;) {
+                // calculate the orderHash
+                bytes32 orderHash = calculateBridgelessOrderHash(orders[i]);
+                // check that the provided `order` is the preimage of an 'active', stored orderHash
+                uint256 index = (uint256(orderHash) >> 8);
+                uint256 mask = 1 << ((uint256(orderHash) & 0xff));
+                require(
+                    (partialFillOrderActiveBitMap[index] & mask != 0),
+                    "Bridgeless.fulfillOrdersFromStorage: partialFillOrder not active at orderHash"
+                );
+                // mark the `orderHash` as no longer 'active'
+                partialFillOrderActiveBitMap[index] = partialFillOrderActiveBitMap[index] & (~mask);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @dev Get the `orders[i].signer`'s balances of the `tokenOut`s & `tokenIn`'s, and cache them in memory, prior to any swap.
+        uint256[] memory tokenOutBalancesBefore = new uint256[](ordersLength);
+        uint256[] memory tokenInBalancesBefore = new uint256[](ordersLength);
+        // scoped block used here to 'avoid stack too deep' errors
+        {
+            for (uint256 i; i < ordersLength;) {
+                tokenOutBalancesBefore[i] = _getUserBalance(orders[i].signer, orders[i].tokenOut);
+                tokenInBalancesBefore[i] = _getUserBalance(orders[i].signer, orders[i].tokenIn);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @dev Optimisically transfer all of the tokens to `swapper`
+        {
+            for (uint256 i; i < ordersLength;) {
+                IERC20(orders[i].tokenIn).safeTransferFrom(orders[i].signer, address(swapper), orders[i].amountIn);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @notice Forward on inputs and pass transaction execution onto arbitrary `swapper` contract
+        swapper.bridgelessCalls(orders, extraCalldata);
+
+        {
+            for (uint256 i; i < ordersLength;) {
+                uint256 tokensObtained = _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i];
+                // i.e. if order was indeed only partially filled
+                if (tokensObtained < orders[i].amountOutMin) {
+                    uint256 tokensTransferredOut = tokenInBalancesBefore[i] - _getUserBalance(orders[i].signer, orders[i].tokenIn);
+                    /**
+                     * ensure that the `orders[i].signer` got *at least* the swap ratio specified in their order
+                     * i.e. we want to check that (tokensObtained / tokensTransferredOut) >= (orders[i].amountOutMin / orders[i].amountIn)
+                     * but this is equivalent to checking that (tokensObtained * orders[i].amountIn) / (tokensTransferredOut * orders[i].amountOutMin) >= 1
+                     */
+                    require(
+                        (tokensObtained * orders[i].amountIn) / (tokensTransferredOut * orders[i].amountOutMin) >= 1,
+                        "Bridgeless.fulfillOrder: partialFillOrder swap ratio not met!"
+                    );
+                    _createPartialFillStorage(orders[i], tokensTransferredOut, tokensObtained);
+                    unchecked {
+                        ++i;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -300,44 +382,44 @@ contract Bridgeless is
         swapper.bridgelessCalls(orders, extraCalldata);
 
         {
-        bool partialFill;
-        uint256 mask;
-        uint256 j;
-        // @dev Verify that each of the `order.signer`s received *at least* `orders[i].amountOutMin` in `tokenOut[i]` from the swap.
-        for (uint256 i; i < ordersLength;) {
-            // read from transient BitMap
-            mask = (1 << i);
-            partialFill = ((transientPartialFillBitmap & (~mask)) != 0);
-            if (!partialFill) {
-                // verify that the `order.signer` received *at least* `amountOutMin` in `order.tokenOut` *after* `swapper` execution has completed
-                require(
-                    _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i] >= orders[i].amountOutMin,
-                    "Bridgeless.fulfillOrder: amountOutMin not met!"
-                );
-            } else {
-                uint256 tokensObtained = _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i];
-                // i.e. if order was indeed only partially filled
-                if (tokensObtained < orders[i].amountOutMin) {
-                    uint256 tokensTransferredOut = tokenInBalancesBefore[j] - _getUserBalance(orders[i].signer, orders[i].tokenIn);
-                    /**
-                     * ensure that the `order.signer` got *at least* the swap ratio specified in their order
-                     * i.e. we want to check that (tokensObtained / tokensTransferredOut) >= (order.amountOutMin / order.amountIn)
-                     * but this is equivalent to checking that (tokensObtained * order.amountIn) / (tokensTransferredOut * order.amountOutMin) >= 1
-                     */
+            bool partialFill;
+            uint256 mask;
+            uint256 j;
+            // @dev Verify that each of the `order.signer`s received *at least* `orders[i].amountOutMin` in `tokenOut[i]` from the swap.
+            for (uint256 i; i < ordersLength;) {
+                // read from transient BitMap
+                mask = (1 << i);
+                partialFill = ((transientPartialFillBitmap & (~mask)) != 0);
+                if (!partialFill) {
+                    // verify that the `order.signer` received *at least* `amountOutMin` in `order.tokenOut` *after* `swapper` execution has completed
                     require(
-                        (tokensObtained * orders[i].amountIn) / (tokensTransferredOut * orders[i].amountOutMin) >= 1,
-                        "Bridgeless.fulfillOrder: partialFillOrder swap ratio not met!"
+                        _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i] >= orders[i].amountOutMin,
+                        "Bridgeless.fulfillOrder: amountOutMin not met!"
                     );
-                    _createPartialFillStorage(orders[i], tokensTransferredOut, tokensObtained);
+                } else {
+                    uint256 tokensObtained = _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i];
+                    // i.e. if order was indeed only partially filled
+                    if (tokensObtained < orders[i].amountOutMin) {
+                        uint256 tokensTransferredOut = tokenInBalancesBefore[j] - _getUserBalance(orders[i].signer, orders[i].tokenIn);
+                        /**
+                         * ensure that the `order.signer` got *at least* the swap ratio specified in their order
+                         * i.e. we want to check that (tokensObtained / tokensTransferredOut) >= (order.amountOutMin / order.amountIn)
+                         * but this is equivalent to checking that (tokensObtained * order.amountIn) / (tokensTransferredOut * order.amountOutMin) >= 1
+                         */
+                        require(
+                            (tokensObtained * orders[i].amountIn) / (tokensTransferredOut * orders[i].amountOutMin) >= 1,
+                            "Bridgeless.fulfillOrder: partialFillOrder swap ratio not met!"
+                        );
+                        _createPartialFillStorage(orders[i], tokensTransferredOut, tokensObtained);
+                    }
+                    unchecked {
+                        ++j;
+                    }
                 }
                 unchecked {
-                    ++j;
+                    ++i;
                 }
             }
-            unchecked {
-                ++i;
-            }
-        }
         }
     }
 
