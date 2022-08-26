@@ -18,6 +18,11 @@ abstract contract BridgelessOrderLibrary is
     bytes32 public constant ORDER_TYPEHASH = keccak256(
         "BridgelessOrder(address tokenIn,uint256 amountIn, address tokenOut,uint256 amountOutMin,uint256 deadline,uint256 noncebytes optionalParameters)");
 
+    // BIT MASKS
+    uint256 internal constant FIRST_BIT_MASK = 0x1000000000000000000000000000000000000000000000000000000000000000;
+    uint256 internal constant SECOND_BIT_MASK = 0x2000000000000000000000000000000000000000000000000000000000000000;
+    uint256 internal constant THIRD_BIT_MASK = 0x4000000000000000000000000000000000000000000000000000000000000000;
+
     /**
      * @notice Simple getter function to calculate the `orderHash` for a `BridgelessOrder`
      * @param order A `BridgelessOrder`-type order
@@ -40,14 +45,39 @@ abstract contract BridgelessOrderLibrary is
         );
     }
 
+    function calculateBridgelessOrderHash_PartialFill(
+        BridgelessOrder calldata order,
+        uint256 tokensTransferredOut,
+        uint256 tokensObtained
+    )
+        public pure returns (bytes32)
+    {
+        return(
+            keccak256(
+                abi.encode(
+                    ORDER_TYPEHASH,
+                    order.signer,
+                    order.tokenIn,
+                    order.amountIn - tokensTransferredOut,
+                    order.tokenOut,
+                    order.amountOutMin - tokensObtained,
+                    order.deadline,
+                    order.nonce,
+                    order.optionalParameters
+                )
+            )
+        );
+    }
+
     /**
-     * Experimental `optionalParameters` format is:
-     * (optional) bytes1: flags to indicate order types -- do not need to include (but can include) for "simple" orders
+     * @dev The `optionalParameters` format is:
+     * (optional) bytes1: 8-bit map of flags to indicate presence of optional parameters -- do not need to include (but can include) for "simple" orders
      * abi.encodePacked(additional args): for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
      */
     function packOptionalParameters(
         bool usingExecutor,
         bool usingValidAfter,
+        bool usingPartialFill,
         address executor,
         uint32 validAfter
     ) public pure returns (bytes memory optionalParameters)
@@ -61,7 +91,7 @@ abstract contract BridgelessOrderLibrary is
             assembly {
                 mstore(
                     add(optionalParameters, 32),
-                    or(mload(add(optionalParameters, 32)), 0x1000000000000000000000000000000000000000000000000000000000000000)
+                    or(mload(add(optionalParameters, 32)), FIRST_BIT_MASK)
                 )
             }
         }
@@ -72,7 +102,16 @@ abstract contract BridgelessOrderLibrary is
             assembly {
                 mstore(
                     add(optionalParameters, 32),
-                    or(mload(add(optionalParameters, 32)), 0x2000000000000000000000000000000000000000000000000000000000000000)
+                    or(mload(add(optionalParameters, 32)), SECOND_BIT_MASK)
+                )
+            }
+        }
+        if (usingPartialFill) {
+            // partialFill flag is third bit being 1 -- set this bit!
+            assembly {
+                mstore(
+                    add(optionalParameters, 32),
+                    or(mload(add(optionalParameters, 32)), THIRD_BIT_MASK)
                 )
             }
         }
@@ -82,12 +121,12 @@ abstract contract BridgelessOrderLibrary is
     /**
      * @dev The `optionalParameters` format is:
      * (optional) bytes1: 8-bit map of flags to indicate presence of optional parameters -- do not need to include (but can include) for "simple" orders
-     * bytes: for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
+     * abi.encodePacked(additional args): for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
      */
     function unpackOptionalParameters(
         bytes memory optionalParameters
     )
-        public pure returns (bool usingExecutor, bool usingValidAfter, address executor, uint32 validAfter) {
+        public pure returns (bool usingExecutor, bool usingValidAfter, bool usingPartialFill, address executor, uint32 validAfter) {
         // account for the 32 bytes of data that encode length
         uint256 additionalOffset = 32;
         assembly {
@@ -95,23 +134,31 @@ abstract contract BridgelessOrderLibrary is
             usingExecutor := eq(
                 and(
                     mload(add(optionalParameters, additionalOffset)),
-                    0x1000000000000000000000000000000000000000000000000000000000000000
+                    FIRST_BIT_MASK
                 ),
-                    0x1000000000000000000000000000000000000000000000000000000000000000
+                    FIRST_BIT_MASK
             )
             // validAfter flag is second bit being 1 -- check for this flag
             usingValidAfter := eq(
                 and(
                     // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
                     mload(add(optionalParameters, additionalOffset)),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
+                    SECOND_BIT_MASK
                 ),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
+                    SECOND_BIT_MASK
+            )
+            // partialFill flag is third bit being 1 -- check for this flag
+            usingPartialFill := eq(
+                and(
+                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
+                    mload(add(optionalParameters, additionalOffset)),
+                    THIRD_BIT_MASK
+                ),
+                    THIRD_BIT_MASK
             )
             // add to additionalOffset to account for the 1 byte of data that was read
             additionalOffset := add(additionalOffset, 1)
         }
-        // run Executor check if flag was set
         if (usingExecutor) {
             assembly {
                 // read executor address -- address is 160 bits so we right-shift by (256-160) = 96
@@ -122,7 +169,6 @@ abstract contract BridgelessOrderLibrary is
                 additionalOffset := add(additionalOffset, 20)                    
             }          
         }
-        // run validAfter check if flag was set
         if (usingValidAfter) {
             assembly {
                 // read validAfter timestamp -- timestamp is enocoded as 32 bits so we right-shift by (256-32) = 224

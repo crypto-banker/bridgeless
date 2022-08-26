@@ -17,7 +17,7 @@ abstract contract UsersAndSubmitter is
     address[] public users;
     uint256[] public user_priv_keys;
 
-    constructor(uint8 numberUsers) {
+    function setUpUsers(uint8 numberUsers) public {
         user_priv_key = uint256(keccak256("pseudorandom-address-00"));
         user = payable(cheats.addr(user_priv_key));
         for (uint8 i; i < numberUsers; ++i) {

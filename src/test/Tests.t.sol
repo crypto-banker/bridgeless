@@ -47,12 +47,11 @@ contract Tests is
     // nothing in the contracts actually enforces a max number, this is purely to decrease the computational cost of running all the tests.
     uint8 MAX_NUMBER_USERS = 8;
 
-    constructor() UsersAndSubmitter(MAX_NUMBER_USERS) {}
-
     function setUp() public {
         // we would deploy the Bridgeless contract here, but it doesn't work nicely like this with forking existing networks.
         // better to deploy after creating fork!
         // bridgeless = new Bridgeless();
+        setUpUsers(MAX_NUMBER_USERS);
     }
 
     function testGaslessSwapMainnet() public {
@@ -122,6 +121,12 @@ contract Tests is
         _testAggregatedGaslessSwap(3);
     }
 
+    function testFulfillOneOrdersMainnet() public {
+        uint256 forkId = cheats.createFork("mainnet");
+        cheats.selectFork(forkId);
+        _testAggregatedGaslessSwap(1);
+    }
+
     function _doOrder(BridgelessOrder memory order) internal {
         _deployContracts();
 
@@ -169,7 +174,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, false, address(multicall), _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(true, false, false, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -178,7 +183,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(false, true, address(multicall), _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(false, true, false, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -188,7 +193,7 @@ contract Tests is
         // set up the order
         BridgelessOrder memory order;
         order = _makeOrder_Base(user);
-        order.optionalParameters = bridgeless.packOptionalParameters(true, true, address(multicall), _validAfter);
+        order.optionalParameters = bridgeless.packOptionalParameters(true, true, false, address(multicall), _validAfter);
         _doOrder(order);
     }
 
@@ -198,20 +203,17 @@ contract Tests is
 
         _setUpSwapParameters(false);
         _deployContracts();
-
         // initialize memory structs
         BridgelessOrder[] memory orders = new BridgelessOrder[](numberUsers);
         PackedSignature[] memory orderSignatures = new PackedSignature[](numberUsers);
         Signature[] memory permitSignatures = new Signature[](numberUsers);
         // set up calls for approvals + swap at end
         Multicall3.Call[] memory callsForMulticall = new Multicall3.Call[](numberUsers + 1);
-
+        
         // set up the orders
         for (uint256 i; i < numberUsers; ++i) {
             // fill in order parameters
             orders[i] = _makeOrder_Base(users[i]);
-            // emit log_named_uint("i", i);
-            // emit log_named_bytes("i-th order", abi.encode(orders[i]));
 
             // get the permit hash
             bytes32 permitHash = _getPermitHash(users[i], orders[i]);
@@ -230,7 +232,6 @@ contract Tests is
             cheats.startPrank(addressToSendTokenFrom);
             IERC20(orders[i].tokenIn).transfer(users[i], _amountIn);
             cheats.stopPrank();
-
         }
 
         // set up the `Bridgeless.fulfillOrders` call
@@ -519,6 +520,7 @@ contract Tests is
     function testPackUnpackOptionalParameters(
         bool _usingExecutor,
         bool _usingValidAfter,
+        bool _usingPartialFill,
         address executor_,
         uint32 validAfter_
     )
@@ -526,20 +528,21 @@ contract Tests is
     {
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(_usingExecutor, _usingValidAfter, executor_, validAfter_);
-        (bool usingExecutor, bool usingValidAfter, address executor, uint32 validAfter) = 
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(_usingExecutor, _usingValidAfter, _usingPartialFill, executor_, validAfter_);
+        (bool usingExecutor, bool usingValidAfter, bool usingPartialFill, address executor, uint32 validAfter) = 
             bridgeless.unpackOptionalParameters(optionalParameters);
         assertTrue(usingExecutor == _usingExecutor, "usingExecutor != _usingExecutor");
         assertTrue(usingValidAfter == _usingValidAfter, "usingValidAfter != _usingValidAfter");
+        assertTrue(usingPartialFill == _usingPartialFill, "usingPartialFill != _usingPartialFill");
         if (_usingExecutor) {
-            assertEq(executor, executor_);            
+            assertEq(executor_, executor);            
         } else {
-            assertEq(executor, address(0));            
+            assertEq(address(0), executor);            
         }
         if (_usingValidAfter) {
-            assertEq(validAfter, validAfter_);            
+            assertEq(validAfter_, validAfter);            
         } else {
-            assertEq(validAfter, uint32(0));            
+            assertEq(uint32(0), validAfter);            
         }
     }
 
@@ -547,7 +550,7 @@ contract Tests is
         // deploy the Bridgeless contract
         bridgeless = new Bridgeless();
         cheats.warp(_validAfter + 1);
-        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, address(this), _validAfter);
+        bytes memory optionalParameters = bridgeless.packOptionalParameters(true, true, true, address(this), _validAfter);
         bridgeless.processOptionalParameters(optionalParameters);
     }
 }

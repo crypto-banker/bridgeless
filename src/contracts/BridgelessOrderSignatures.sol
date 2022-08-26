@@ -18,8 +18,15 @@ abstract contract BridgelessOrderSignatures is
      *  signer => nonce => whether or not the nonce has been spent already
      *  Implementation of BitMaps in this contract is inspired by OpenZeppelin's and Uniswap's code.
      *  Using bitmaps saves gas, since SSTOREs are cheaper once the slot is already nonzero!
+     *  A Single BitMap entry can be read by using the `nonceIsSpent(signer, nonce)` function.
      */
     mapping(address => mapping(uint256 => uint256)) public nonceBitmaps;
+
+    function nonceIsSpent(address signer, uint256 nonce) public view returns (bool) {
+        uint256 index = (nonce >> 8);
+        uint256 mask = (1 << (nonce & 0xff));
+        return ((nonceBitmaps[signer][index] & mask) != 0);
+    }
 
     // set immutable variables
     constructor()
@@ -31,25 +38,19 @@ abstract contract BridgelessOrderSignatures is
     }
 
     function _processOrderSignature(BridgelessOrder calldata order, PackedSignature calldata signature) internal {
-        // calculate the orderHash and mark it as spent
+        // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash(order);
         // verify the order signature
         _checkOrderSignature(order.signer, orderHash, signature);
         // check nonce validity
-        uint256 index = order.nonce >> 8;
-        uint256 mask = 1 << (order.nonce & 0xff);
+        uint256 index = (order.nonce >> 8);
+        uint256 mask = (1 << (order.nonce & 0xff));
         // this means the nonce is already spent
         if (nonceBitmaps[order.signer][index] & mask != 0) {
             revert("Bridgeless._processOrderSignature: nonce is already spent");
         }
         // mark nonce as spent
-        nonceBitmaps[order.signer][index] |= mask;
-    }
-
-    function nonceIsSpent(address signer, uint256 nonce) public view returns (bool) {
-        uint256 index = nonce >> 8;
-        uint256 mask = 1 << (nonce & 0xff);
-        return nonceBitmaps[signer][index] & mask != 0;
+        nonceBitmaps[order.signer][index] = (nonceBitmaps[order.signer][index] | mask);
     }
 
     /**
@@ -58,12 +59,13 @@ abstract contract BridgelessOrderSignatures is
      * @param optionalParameters A set of flags and 
      * @dev The `optionalParameters` format is:
      * (optional) bytes1: 8-bit map of flags to indicate presence of optional parameters -- do not need to include (but can include) for "simple" orders
-     * bytes: for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
+     * abi.encodePacked(additional args): for each flag that is a '1', additional calldata should be attached, encoding information relevant to that flag
+     * @ return Whether or not the `partialFill` flag is set
      */
-    function processOptionalParameters(bytes memory optionalParameters) public view {
+    function processOptionalParameters(bytes memory optionalParameters) public view returns (bool) {
         // no optionalParams -- do nothing and return early
         if (optionalParameters.length == 0) {
-            return;
+            return false;
         }
         bool flag;
         // executor flag is first bit being 1 -- check for this flag
@@ -72,9 +74,9 @@ abstract contract BridgelessOrderSignatures is
                 and(
                     // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
                     mload(add(optionalParameters, 32)),
-                    0x1000000000000000000000000000000000000000000000000000000000000000
+                    FIRST_BIT_MASK
                 ),
-                    0x1000000000000000000000000000000000000000000000000000000000000000
+                    FIRST_BIT_MASK
             )
         }
         // account for the 32 bytes of data that encode length and the 1 byte that has already been read
@@ -101,9 +103,9 @@ abstract contract BridgelessOrderSignatures is
                 and(
                     // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
                     mload(add(optionalParameters, 32)),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
+                    SECOND_BIT_MASK
                 ),
-                    0x2000000000000000000000000000000000000000000000000000000000000000
+                    SECOND_BIT_MASK
             )
         }
         // run validAfter check if flag was set
@@ -122,6 +124,17 @@ abstract contract BridgelessOrderSignatures is
                 "Bridgeless._checkOptionalParameters: block.timestamp <= validAfter"
             );
         }
-        return;
+        // partialFill flag is third bit being 1 -- check for this flag
+        assembly {
+            flag := eq(
+                and(
+                    // offset of 32 is used to start reading from `optionalParameters` starting after the 32 bytes that encode length
+                    mload(add(optionalParameters, 32)),
+                    THIRD_BIT_MASK
+                ),
+                    THIRD_BIT_MASK
+            )
+        }
+        return flag;
     }
 }

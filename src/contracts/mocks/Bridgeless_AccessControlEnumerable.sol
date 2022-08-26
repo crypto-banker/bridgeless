@@ -27,8 +27,6 @@ contract Bridgeless_AccessControlEnumerable is
         onlyRole(DEFAULT_ADMIN_ROLE)
         // @dev Modifier to verify that order is still valid
         checkOrderDeadline(order.deadline)
-        // @dev Modifier to verify correct order execution
-        checkOrderFulfillment(order.signer, order.tokenOut, order.amountOutMin)
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
