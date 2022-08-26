@@ -123,17 +123,10 @@ contract Bridgeless is
         // @dev nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
         nonReentrant
     {
-        // calculate the orderHash
-        bytes32 orderHash = calculateBridgelessOrderHash(order);
-        // check that the provided `order` is the preimage of an 'active', stored orderHash
-        uint256 index = (uint256(orderHash) >> 8);
-        uint256 mask = 1 << ((uint256(orderHash) & 0xff));
-        require(
-            (partialFillOrderActiveBitMap[index] & mask != 0),
-            "Bridgeless.fulfillOrderFromStorage: partialFillOrder not active at orderHash"
-        );
-        // mark the `orderHash` as no longer 'active'
-        partialFillOrderActiveBitMap[index] = partialFillOrderActiveBitMap[index] & (~mask);
+        _markAsNoLongerActive(order);
+
+        // @dev Check the optional order parameters. Ignore the return value here since we already know this is a partialFill order
+        processOptionalParameters(order.optionalParameters);
 
         // get the `order.signer`'s balance of the `order.tokenOut`, *prior* to transferring tokens
         uint256 tokenOutBalanceBefore = _getUserBalance(order.signer, order.tokenOut);
@@ -189,17 +182,17 @@ contract Bridgeless is
         // @dev Verify that the `orders` are all still 'active' and then mark them as no longer active.
         {
             for (uint256 i; i < ordersLength;) {
-                // calculate the orderHash
-                bytes32 orderHash = calculateBridgelessOrderHash(orders[i]);
-                // check that the provided `order` is the preimage of an 'active', stored orderHash
-                uint256 index = (uint256(orderHash) >> 8);
-                uint256 mask = 1 << ((uint256(orderHash) & 0xff));
-                require(
-                    (partialFillOrderActiveBitMap[index] & mask != 0),
-                    "Bridgeless.fulfillOrdersFromStorage: partialFillOrder not active at orderHash"
-                );
-                // mark the `orderHash` as no longer 'active'
-                partialFillOrderActiveBitMap[index] = partialFillOrderActiveBitMap[index] & (~mask);
+                _markAsNoLongerActive(orders[i]);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        {
+            for (uint256 i; i < ordersLength;) {
+                // @dev Check the optional order parameters. Ignore the return value here since we already know this is a partialFill order
+                processOptionalParameters(orders[i].optionalParameters);
                 unchecked {
                     ++i;
                 }
@@ -257,6 +250,184 @@ contract Bridgeless is
         }
     }
 
+    function fulfillOrdersPartiallyFromStorage(
+        IBridgelessCallee swapper,
+        BridgelessOrder[] calldata orders,
+        PackedSignature[] calldata signatures,
+        uint256 fromStorageBitMap,
+        bytes calldata extraCalldata
+    )
+        public virtual
+        // nonReentrant modifier since we hand over control of execution to the aribtrary contract input `swapper` later in this function
+        nonReentrant
+    {
+        // cache array length in memory
+        uint256 ordersLength = orders.length;
+
+        // Used to store up to 256 boolean values. NOTE: Using this means assuming <= 256 orders in this call
+        uint256 totalPartialFills;
+        uint256 totalOrdersFromStorage;
+
+        // @dev Verify that the `orders` are all still valid.
+        {
+            for (uint256 i; i < ordersLength;) {
+                _checkOrderDeadline(orders[i].deadline);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @dev Verify that the `order.signer`s did indeed sign the `orders`.
+        // @dev For the *new* `orders`, mark their nonces as spent.
+        // @dev For the `orders` *from storage*, check that they are 'active' and then mark them as no longer active.
+        {
+            bool partialFill;
+            for (uint256 i; i < ordersLength;) {
+                uint256 inputBitMapMask = 1 << ((uint256(i) & 0xff));
+                // If i-th bit of `fromStorageBitMap` is a 1, indicating that the order is from storage
+                if (fromStorageBitMap & inputBitMapMask != 0) {
+                    // check that the provided `order` is the preimage of an 'active', stored orderHash, and then mark it as no longer active
+                    _markAsNoLongerActive(orders[i]);
+                    unchecked {
+                        ++totalPartialFills;
+                        ++totalOrdersFromStorage;
+                    }
+                    // @dev Check the optional order parameters. Ignore the return value here since we already know this is a partialFill order
+                    processOptionalParameters(orders[i].optionalParameters);
+                }
+                // Otherwise order is *not* from storage
+                else {
+                    _processOrderSignature(orders[i], signatures[i]);     
+                    // @dev check the optional order parameters
+                    partialFill = processOptionalParameters(orders[i].optionalParameters);
+                    // set transient BitMap entry and increment `totalPartialFills` if partialFill flag is set on order
+                    if (partialFill) {
+                        // write to `fromStorageBitMap` here, using it as a transient bitmap, since we've already passed the part where we mark it as spent
+                        // uint256 mask = (1 << i);
+                        // fromStorageBitMap = (fromStorageBitMap | mask);
+                        fromStorageBitMap = (fromStorageBitMap | (1 << i));
+                        unchecked {
+                            ++totalPartialFills;
+                        }
+                    }
+                }
+                // increment loop regardless
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @dev Sanity check on input lengths.
+        {
+            require(
+                ordersLength == signatures.length + totalOrdersFromStorage,
+                "Bridgeless.fulfillOrdersPartiallyFromStorage: orders.length != signatures.length + totalOrdersFromStorage"
+            );
+        }
+
+        // @dev Get the `order.signer`'s balances of the `tokenOut`s and cache them in memory, prior to any swap.
+        uint256[] memory tokenOutBalancesBefore = new uint256[](ordersLength);
+        // scoped block used here to 'avoid stack too deep' errors
+        {
+            for (uint256 i; i < ordersLength;) {
+                tokenOutBalancesBefore[i] = _getUserBalance(orders[i].signer, orders[i].tokenOut);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        uint256[] memory tokenInBalancesBefore = new uint256[](totalPartialFills);
+        // scoped block used here to 'avoid stack too deep' errors
+        {
+            uint256 j;
+            for (uint256 i; i < ordersLength;) {
+                // read from transient BitMap
+                // uint256 mask = (1 << i);
+                // bool partialFill = ((fromStorageBitMap & (~mask)) != 0);
+                if ((fromStorageBitMap & (~(1 << i))) != 0) {
+                    tokenInBalancesBefore[j] = _getUserBalance(orders[i].signer, orders[i].tokenIn);
+                    unchecked {
+                        ++j;
+                    }
+                }
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @dev Optimisically transfer all of the tokens to `swapper`
+        {
+            for (uint256 i; i < ordersLength;) {
+                IERC20(orders[i].tokenIn).safeTransferFrom(orders[i].signer, address(swapper), orders[i].amountIn);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+
+        // @notice Forward on inputs and pass transaction execution onto arbitrary `swapper` contract
+        swapper.bridgelessCalls(orders, extraCalldata);
+
+        {
+            uint256 j;
+            // @dev Verify that each of the `order.signer`s received *at least* `orders[i].amountOutMin` in `tokenOut[i]` from the swap.
+            for (uint256 i; i < ordersLength;) {
+                // read from transient BitMap
+                // bool partialFill = ((fromStorageBitMap & (~mask)) != 0);
+                // bool partialFill = ((fromStorageBitMap & (~(1 << i))) != 0);
+                // If order is *not* a 'partialFill' order
+                if (((fromStorageBitMap & (~(1 << i))) == 0)) {
+                    // verify that the `order.signer` received *at least* `amountOutMin` in `order.tokenOut` *after* `swapper` execution has completed
+                    require(
+                        _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i] >= orders[i].amountOutMin,
+                        "Bridgeless.fulfillOrdersPartiallyFromStorage: amountOutMin not met!"
+                    );
+                } else {
+                    uint256 tokensObtained = _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i];
+                    // i.e. if order was indeed only partially filled
+                    if (tokensObtained < orders[i].amountOutMin) {
+                        uint256 tokensTransferredOut = tokenInBalancesBefore[j] - _getUserBalance(orders[i].signer, orders[i].tokenIn);
+                        /**
+                         * ensure that the `order.signer` got *at least* the swap ratio specified in their order
+                         * i.e. we want to check that (tokensObtained / tokensTransferredOut) >= (order.amountOutMin / order.amountIn)
+                         * but this is equivalent to checking that (tokensObtained * order.amountIn) / (tokensTransferredOut * order.amountOutMin) >= 1
+                         */
+                        require(
+                            (tokensObtained * orders[i].amountIn) / (tokensTransferredOut * orders[i].amountOutMin) >= 1,
+                            "Bridgeless.fulfillOrdersPartiallyFromStorage: partialFillOrder swap ratio not met!"
+                        );
+                        _createPartialFillStorage(orders[i], tokensTransferredOut, tokensObtained);
+                    }
+                    unchecked {
+                        ++j;
+                    }
+                }
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+    }
+
+    // check that the provided `order` is the preimage of an 'active', stored orderHash, and then mark it as no longer active
+    function _markAsNoLongerActive(BridgelessOrder calldata order) internal {
+        // calculate the orderHash
+        bytes32 orderHash = calculateBridgelessOrderHash(order);
+        // verify that `orderHash` is 'active' (i.e. its bit flag is set to '1' in the `partialFillOrderActiveBitMap`)
+        uint256 index = (uint256(orderHash) >> 8);
+        uint256 mask = 1 << ((uint256(orderHash) & 0xff));
+        require(
+            (partialFillOrderActiveBitMap[index] & mask != 0),
+            "Bridgeless._markAsNoLongerActive: partialFillOrder not active at orderHash"
+        );
+        // mark the `orderHash` as no longer 'active'
+        partialFillOrderActiveBitMap[index] = partialFillOrderActiveBitMap[index] & (~mask);
+    }
+
     /**
      * @notice Fulfills any arbitrary number of `BridgelessOrder`s, swapping `order.amountIn`
      *         of the ERC20 token `orders[i].tokenIn` for *at least* `orders[i].amountOutMin` of `orders[i].TokenOut`.
@@ -291,7 +462,7 @@ contract Bridgeless is
             );
         }
 
-        // @dev Verify that the `orders` are all still valid and mark their nonces as spent.
+        // @dev Verify that the `orders` are all still valid.
         {
             for (uint256 i; i < ordersLength;) {
                 _checkOrderDeadline(orders[i].deadline);
@@ -301,7 +472,7 @@ contract Bridgeless is
             }
         }
 
-        // @dev Verify that the `order.signer`s did indeed sign the `orders`.
+        // @dev Verify that the `order.signer`s did indeed sign the `orders`, and mark their nonces as spent.
         {
             for (uint256 i; i < ordersLength;) {
                 _processOrderSignature(orders[i], signatures[i]);
@@ -312,7 +483,7 @@ contract Bridgeless is
         }
 
         // Used to store up to 256 boolean values. NOTE: Using this means assuming <= 256 orders in this call
-        uint256 transientPartialFillBitmap;
+        uint256 transientPartialFillBitMap;
         uint256 totalPartialFills;
 
         // @dev check the optional order parameters
@@ -322,8 +493,8 @@ contract Bridgeless is
                 partialFill = processOptionalParameters(orders[i].optionalParameters);
                 // set transient BitMap entry and increment `totalPartialFills` if partialFill flag is set on order
                 if (partialFill) {
-                    uint256 mask = (1 << i);
-                    transientPartialFillBitmap = (transientPartialFillBitmap | mask);
+                    // uint256 mask = (1 << i);
+                    transientPartialFillBitMap = (transientPartialFillBitMap | (1 << i));
                     unchecked {
                         ++totalPartialFills;
                     }
@@ -349,14 +520,13 @@ contract Bridgeless is
         uint256[] memory tokenInBalancesBefore = new uint256[](totalPartialFills);
         // scoped block used here to 'avoid stack too deep' errors
         {
-            bool partialFill;
-            uint256 mask;
             uint256 j;
             for (uint256 i; i < ordersLength;) {
                 // read from transient BitMap
-                mask = (1 << i);
-                partialFill = ((transientPartialFillBitmap & (~mask)) != 0);
-                if (partialFill) {
+                // mask = (1 << i);
+                // bool partialFill = ((transientPartialFillBitMap & (~mask)) != 0);
+                // bool partialFill = ((transientPartialFillBitMap & (~(1 << i))) != 0);
+                if ((transientPartialFillBitMap & (~(1 << i))) != 0) {
                     tokenInBalancesBefore[j] = _getUserBalance(orders[i].signer, orders[i].tokenIn);
                     unchecked {
                         ++j;
@@ -382,19 +552,19 @@ contract Bridgeless is
         swapper.bridgelessCalls(orders, extraCalldata);
 
         {
-            bool partialFill;
-            uint256 mask;
             uint256 j;
             // @dev Verify that each of the `order.signer`s received *at least* `orders[i].amountOutMin` in `tokenOut[i]` from the swap.
             for (uint256 i; i < ordersLength;) {
                 // read from transient BitMap
-                mask = (1 << i);
-                partialFill = ((transientPartialFillBitmap & (~mask)) != 0);
-                if (!partialFill) {
+                // mask = (1 << i);
+                // bool partialFill = ((transientPartialFillBitMap & (~mask)) != 0);
+                // bool partialFill = ((transientPartialFillBitMap & (~(1 << i))) != 0);
+                // If order is *not* a 'partialFill' order
+                if (((transientPartialFillBitMap & (~(1 << i))) == 0)) {
                     // verify that the `order.signer` received *at least* `amountOutMin` in `order.tokenOut` *after* `swapper` execution has completed
                     require(
                         _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i] >= orders[i].amountOutMin,
-                        "Bridgeless.fulfillOrder: amountOutMin not met!"
+                        "Bridgeless.fulfillOrders: amountOutMin not met!"
                     );
                 } else {
                     uint256 tokensObtained = _getUserBalance(orders[i].signer, orders[i].tokenOut) - tokenOutBalancesBefore[i];
@@ -408,7 +578,7 @@ contract Bridgeless is
                          */
                         require(
                             (tokensObtained * orders[i].amountIn) / (tokensTransferredOut * orders[i].amountOutMin) >= 1,
-                            "Bridgeless.fulfillOrder: partialFillOrder swap ratio not met!"
+                            "Bridgeless.fulfillOrders: partialFillOrder swap ratio not met!"
                         );
                         _createPartialFillStorage(orders[i], tokensTransferredOut, tokensObtained);
                     }
