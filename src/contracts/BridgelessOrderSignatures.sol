@@ -23,8 +23,8 @@ abstract contract BridgelessOrderSignatures is
     mapping(address => mapping(uint256 => uint256)) public nonceBitmaps;
 
     function nonceIsSpent(address signer, uint256 nonce) public view returns (bool) {
-        uint256 index = (nonce >> 128);
-        uint256 mask = (1 << (nonce & 0xffffffffffffffff));
+        uint256 index = (nonce >> 8);
+        uint256 mask = (1 << (nonce & 0xff));
         return ((nonceBitmaps[signer][index] & mask) != 0);
     }
 
@@ -43,8 +43,8 @@ abstract contract BridgelessOrderSignatures is
         // verify the order signature
         _checkOrderSignature(order.signer, orderHash, signature);
         // check nonce validity
-        uint256 index = (order.nonce >> 128);
-        uint256 mask = (1 << (order.nonce & 0xffffffffffffffff));
+        uint256 index = (order.nonce >> 8);
+        uint256 mask = (1 << (order.nonce & 0xff));
         // this means the nonce is already spent
         if (nonceBitmaps[order.signer][index] & mask != 0) {
             revert("Bridgeless._processOrderSignature: nonce is already spent");
