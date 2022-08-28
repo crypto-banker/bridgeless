@@ -25,8 +25,8 @@ contract Bridgeless is
     mapping(uint256 => uint256) public partialFillOrderActiveBitMap;
 
     function partialFillOrderIsActive(bytes32 orderHash) public view returns (bool) {
-        uint256 index = (uint256(orderHash) >> 8);
-        uint256 mask = 1 << ((uint256(orderHash) & 0xff));
+        uint256 index = (uint256(orderHash) >> 128);
+        uint256 mask = 1 << ((uint256(orderHash) & 0xffffffffffffffff));
         return ((partialFillOrderActiveBitMap[index] & mask) != 0);
     }
 
@@ -161,8 +161,8 @@ contract Bridgeless is
     function _createPartialFillStorage(BridgelessOrder calldata order, uint256 tokensTransferredOut, uint256 tokensObtained) internal {
         // set the storage slot
         bytes32 newOrderHash = calculateBridgelessOrderHash_PartialFill(order, tokensTransferredOut, tokensObtained);
-        uint256 index = (uint256(newOrderHash) >> 8);
-        uint256 mask = 1 << ((uint256(newOrderHash) & 0xff));
+        uint256 index = (uint256(newOrderHash) >> 128);
+        uint256 mask = 1 << ((uint256(newOrderHash) & 0xffffffffffffffff));
         partialFillOrderActiveBitMap[index] = (partialFillOrderActiveBitMap[index] | mask);
         // emit an event
         emit PartialFillStorageCreated(newOrderHash, order, tokensTransferredOut, tokensObtained);
@@ -418,8 +418,8 @@ contract Bridgeless is
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash(order);
         // verify that `orderHash` is 'active' (i.e. its bit flag is set to '1' in the `partialFillOrderActiveBitMap`)
-        uint256 index = (uint256(orderHash) >> 8);
-        uint256 mask = 1 << ((uint256(orderHash) & 0xff));
+        uint256 index = (uint256(orderHash) >> 128);
+        uint256 mask = 1 << ((uint256(orderHash) & 0xffffffffffffffff));
         require(
             (partialFillOrderActiveBitMap[index] & mask != 0),
             "Bridgeless._markAsNoLongerActive: partialFillOrder not active at orderHash"
