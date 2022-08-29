@@ -25,9 +25,9 @@ contract Bridgeless is
     mapping(uint256 => uint256) public partialFillOrderActiveBitMap;
 
     function partialFillOrderIsActive(bytes32 orderHash) public view returns (bool) {
-        uint256 index = (uint256(orderHash) >> 8);
+        uint256 bucket = (uint256(orderHash) >> 8);
         uint256 mask = 1 << ((uint256(orderHash) & 0xff));
-        return ((partialFillOrderActiveBitMap[index] & mask) != 0);
+        return ((partialFillOrderActiveBitMap[bucket] & mask) != 0);
     }
 
     // Check an order deadline. Orders must be executed at or before the UTC timestamp specified by their `deadline`.
@@ -161,9 +161,9 @@ contract Bridgeless is
     function _createPartialFillStorage(BridgelessOrder calldata order, uint256 tokensTransferredOut, uint256 tokensObtained) internal {
         // set the storage slot
         bytes32 newOrderHash = calculateBridgelessOrderHash_PartialFill(order, tokensTransferredOut, tokensObtained);
-        uint256 index = (uint256(newOrderHash) >> 8);
+        uint256 bucket = (uint256(newOrderHash) >> 8);
         uint256 mask = 1 << ((uint256(newOrderHash) & 0xff));
-        partialFillOrderActiveBitMap[index] = (partialFillOrderActiveBitMap[index] | mask);
+        partialFillOrderActiveBitMap[bucket] = (partialFillOrderActiveBitMap[bucket] | mask);
         // emit an event
         emit PartialFillStorageCreated(newOrderHash, order, tokensTransferredOut, tokensObtained);
     }
@@ -418,14 +418,14 @@ contract Bridgeless is
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash(order);
         // verify that `orderHash` is 'active' (i.e. its bit flag is set to '1' in the `partialFillOrderActiveBitMap`)
-        uint256 index = (uint256(orderHash) >> 8);
+        uint256 bucket = (uint256(orderHash) >> 8);
         uint256 mask = 1 << ((uint256(orderHash) & 0xff));
         require(
-            (partialFillOrderActiveBitMap[index] & mask != 0),
+            (partialFillOrderActiveBitMap[bucket] & mask != 0),
             "Bridgeless._markAsNoLongerActive: partialFillOrder not active at orderHash"
         );
         // mark the `orderHash` as no longer 'active'
-        partialFillOrderActiveBitMap[index] = partialFillOrderActiveBitMap[index] & (~mask);
+        partialFillOrderActiveBitMap[bucket] = partialFillOrderActiveBitMap[bucket] & (~mask);
     }
 
     /**
