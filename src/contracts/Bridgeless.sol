@@ -19,16 +19,10 @@ contract Bridgeless is
     using SafeERC20 for IERC20;
 
     /**
-     *  BitMap for storing (orderHash => whether or not the partialFill order corresponding to the orderHash is 'active' or not).
+     *  Mapping for storing (orderHash => whether or not the partialFill order corresponding to the orderHash is 'active' or not).
      *  A single BitMap entry can be read by using the `partialFillOrderIsActive(orderHash)` function
      */
-    mapping(uint256 => uint256) public partialFillOrderActiveBitMap;
-
-    function partialFillOrderIsActive(bytes32 orderHash) public view returns (bool) {
-        uint256 bucket = (uint256(orderHash) >> 8);
-        uint256 mask = 1 << ((uint256(orderHash) & 0xff));
-        return ((partialFillOrderActiveBitMap[bucket] & mask) != 0);
-    }
+    mapping(bytes32 => bool) public partialFillOrderIsActive;
 
     // Check an order deadline. Orders must be executed at or before the UTC timestamp specified by their `deadline`.
     modifier checkOrderDeadline(uint256 deadline) {
@@ -161,9 +155,7 @@ contract Bridgeless is
     function _createPartialFillStorage(BridgelessOrder calldata order, uint256 tokensTransferredOut, uint256 tokensObtained) internal {
         // set the storage slot
         bytes32 newOrderHash = calculateBridgelessOrderHash_PartialFill(order, tokensTransferredOut, tokensObtained);
-        uint256 bucket = (uint256(newOrderHash) >> 8);
-        uint256 mask = 1 << ((uint256(newOrderHash) & 0xff));
-        partialFillOrderActiveBitMap[bucket] = (partialFillOrderActiveBitMap[bucket] | mask);
+        partialFillOrderIsActive[newOrderHash] = true;
         // emit an event
         emit PartialFillStorageCreated(newOrderHash, order, tokensTransferredOut, tokensObtained);
     }
@@ -413,19 +405,19 @@ contract Bridgeless is
         }
     }
 
-    // check that the provided `order` is the preimage of an 'active', stored orderHash, and then mark it as no longer active
+    // check that the provided `order` is a previously partially-filled, still open order, and then mark it as no longer active
     function _markAsNoLongerActive(BridgelessOrder calldata order) internal {
         // calculate the orderHash
         bytes32 orderHash = calculateBridgelessOrderHash(order);
-        // verify that `orderHash` is 'active' (i.e. its bit flag is set to '1' in the `partialFillOrderActiveBitMap`)
-        uint256 bucket = (uint256(orderHash) >> 8);
-        uint256 mask = 1 << ((uint256(orderHash) & 0xff));
+
+        // verify that `orderHash` is 'active'
         require(
-            (partialFillOrderActiveBitMap[bucket] & mask != 0),
+            partialFillOrderIsActive[orderHash],
             "Bridgeless._markAsNoLongerActive: partialFillOrder not active at orderHash"
         );
+
         // mark the `orderHash` as no longer 'active'
-        partialFillOrderActiveBitMap[bucket] = partialFillOrderActiveBitMap[bucket] & (~mask);
+        partialFillOrderIsActive[orderHash] = false;
     }
 
     /**
